@@ -1,0 +1,52 @@
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-cloud text-ink-800 font-body antialiased;
+  }
+  h1, h2, h3, h4, h5 {
+    @apply font-display text-ink-900;
+  }
+  :focus-visible {
+    outline: 2px solid #4F46E5;
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+}
+
+@layer components {
+  .glass {
+    @apply bg-white/70 backdrop-blur-xl border border-white/60 shadow-glass;
+  }
+  .container-page {
+    @apply max-w-7xl mx-auto px-5 sm:px-8 lg:px-10;
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-full bg-brand-gradient text-white font-semibold px-6 py-3 shadow-card hover:shadow-glass-lg hover:-translate-y-0.5 active:translate-y-0 transition-all duration-300;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-full border-2 border-ink-900/10 bg-white text-ink-900 font-semibold px-6 py-3 hover:border-brand/40 hover:-translate-y-0.5 transition-all duration-300;
+  }
+  .eyebrow {
+    @apply inline-flex items-center gap-2 text-xs font-mono uppercase tracking-[0.2em] text-brand-600 font-semibold;
+  }
+  .section-pad {
+    @apply py-20 sm:py-28;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

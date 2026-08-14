@@ -1,0 +1,27 @@
+// Minimal client-side CSV export — no extra dependency needed for something
+// this simple. Handles quoting fields that contain commas/quotes/newlines.
+
+function escapeCsvField(value) {
+  const str = value === null || value === undefined ? '' : String(value)
+  if (/[",\n]/.test(str)) {
+    return `"${str.replace(/"/g, '""')}"`
+  }
+  return str
+}
+
+export function downloadCsv(filename, rows, columns) {
+  // columns: [{ key, label }]
+  const header = columns.map((c) => escapeCsvField(c.label)).join(',')
+  const lines = rows.map((row) => columns.map((c) => escapeCsvField(row[c.key])).join(','))
+  const csv = [header, ...lines].join('\n')
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.URL.revokeObjectURL(url)
+}

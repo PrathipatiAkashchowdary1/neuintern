@@ -1,0 +1,12 @@
+{
+  "name": "NeuIntern — 4-Week Internship Programs",
+  "short_name": "NeuIntern",
+  "description": "Focused 4-week internship programs across development, data, AI, security, cloud, design and marketing.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#F7F8FC",
+  "theme_color": "#4F46E5",
+  "icons": [
+    { "src": "./favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
