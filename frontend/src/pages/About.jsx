@@ -14,10 +14,10 @@ const process = [
 ]
 
 const team = [
-  { name: 'Meera Kapoor', role: 'Founder & Curriculum Lead', photo: 'https://i.pravatar.cc/200?img=44' },
-  { name: 'Aditya Rao', role: 'Head of Mentorship', photo: 'https://i.pravatar.cc/200?img=13' },
-  { name: 'Ishita Bose', role: 'Program Design', photo: 'https://i.pravatar.cc/200?img=30' },
-  { name: 'Farhan Sheikh', role: 'Partnerships', photo: 'https://i.pravatar.cc/200?img=14' },
+  { name: 'Vijay Lakshmi', role: 'Founder & Curriculum Lead', photo: 'https://i.pravatar.cc/200?img=44' },
+  { name: 'Anil Alla', role: 'Head of Mentorship', photo: 'https://i.pravatar.cc/200?img=13' },
+  { name: 'Farhan Sheikh', role: 'Program Design', photo: 'https://i.pravatar.cc/200?img=30' },
+  { name: 'Kishore', role: 'Partnerships', photo: 'https://i.pravatar.cc/200?img=14' },
 ]
 
 export default function About() {

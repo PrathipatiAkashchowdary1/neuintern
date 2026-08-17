@@ -2,16 +2,16 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { FiLogIn, FiAlertCircle } from 'react-icons/fi'
+import { FiLogIn, FiAlertCircle, FiEye, FiEyeOff } from 'react-icons/fi'
 import Seo from '../seo/Seo'
 import { useAuth } from '../context/AuthContext'
-
 
 export default function Login() {
   const { login } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [serverError, setServerError] = useState('')
+  const [showPassword, setShowPassword] = useState(false) // 1. Added state for toggling
 
   const {
     register,
@@ -63,22 +63,40 @@ export default function Login() {
               />
               {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
             </div>
+            
             <div>
               <div className="flex items-center justify-between">
                 <label htmlFor="password" className="text-sm font-medium text-ink-800">Password</label>
-                <Link to="/forgot-password" className="text-xs text-brand-600 font-medium hover:underline">
+                <Link to="/forgot-password" class="text-xs text-brand-600 font-medium hover:underline">
                   Forgot password?
                 </Link>
               </div>
-              <input
-                id="password"
-                type="password"
-                {...register('password', { required: 'Password is required' })}
-                className="w-full mt-1.5 rounded-xl border border-ink-900/10 px-4 py-3 text-sm focus:outline-none focus:border-brand-400 focus:ring-4 focus:ring-brand-100"
-                placeholder="••••••••"
-              />
+
+              {/* 2. Wrapped input and button in a relative container */}
+              <div className="relative mt-1.5">
+                <input
+                  id="password"
+                  // 3. Toggle type between 'text' and 'password'
+                  type={showPassword ? 'text' : 'password'}
+                  {...register('password', { required: 'Password is required' })}
+                  className="w-full rounded-xl border border-ink-900/10 pl-4 pr-12 py-3 text-sm focus:outline-none focus:border-brand-400 focus:ring-4 focus:ring-brand-100"
+                  placeholder="••••••••"
+                />
+                
+                {/* 4. Eye toggle button */}
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-400 hover:text-ink-600 focus:outline-none"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <FiEyeOff size={18} /> : <FiEye size={18} />}
+                </button>
+              </div>
+
               {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>}
             </div>
+
             <button type="submit" disabled={isSubmitting} className="btn-primary w-full">
               {isSubmitting ? 'Logging in…' : <>Log In <FiLogIn /></>}
             </button>

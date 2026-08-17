@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://www.neuintern.com/sitemap.xml
+Sitemap: https://www.neuintern.in/sitemap.xml

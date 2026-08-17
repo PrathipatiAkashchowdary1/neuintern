@@ -13,7 +13,7 @@ SAMPLE_CERTIFICATES = [
 
 DEFAULT_ADMIN = {
     "full_name": "NeuIntern Admin",
-    "email": "admin@neuintern.in",
+    "email": "info@neuintern.in",
     "phone": "9999999999",
     "degree": "N/A",
     "branch": "N/A",

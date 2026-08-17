@@ -323,10 +323,14 @@ async def verify_certificate_payment(
 
 
 def _certificate_data(enrollment: Enrollment) -> dict:
+    start_date = enrollment.enrolled_at or datetime.now(timezone.utc)
+    end_date = start_date + timedelta(days=28)
     return {
         "certificateId": enrollment.certificate_id,
         "studentName": enrollment.name,
         "programTitle": enrollment.program_title,
+        "startDate": start_date.strftime("%B %d, %Y"),
+        "endDate": end_date.strftime("%B %d, %Y"),
         "issuedOn": enrollment.paid_at.date().isoformat() if enrollment.paid_at else None,
     }
 

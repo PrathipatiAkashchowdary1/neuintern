@@ -293,60 +293,110 @@ def generate_offer_letter_pdf(data: dict) -> io.BytesIO:
 # ---------------------------------------------------------------------------
 
 def generate_certificate_pdf(data: dict) -> io.BytesIO:
-    """data: studentName, programTitle, certificateId, issuedOn (display string)
-
-    Same brand teal + logo badge + signature block as the offer letter above,
-    so the two documents read as a matched pair."""
+    """
+    data should include:
+    - studentName
+    - programTitle
+    - certificateId
+    - issuedOn (string like 'July 30, 2026')
+    - startDate
+    - endDate
+    """
     buf = io.BytesIO()
     page_w, page_h = landscape(A4)
     c = canvas.Canvas(buf, pagesize=landscape(A4))
 
+    # Background
     c.setFillColor(CLOUD)
     c.rect(0, 0, page_w, page_h, stroke=0, fill=1)
 
+    # Border
     border_margin = 10 * mm
     c.setStrokeColor(BRAND_TEAL)
     c.setLineWidth(2)
-    c.rect(border_margin, border_margin, page_w - 2 * border_margin, page_h - 2 * border_margin, stroke=1, fill=0)
+    c.rect(border_margin, border_margin,
+           page_w - 2 * border_margin, page_h - 2 * border_margin,
+           stroke=1, fill=0)
 
-    _brand_bar(c, border_margin, page_h - border_margin - 4 * mm, page_w - 2 * border_margin, 4 * mm)
+    # Title bar
+    c.setFillColor(BRAND_TEAL)
+    c.rect(border_margin, page_h - border_margin - 4 * mm,
+           page_w - 2 * border_margin, 4 * mm, stroke=0, fill=1)
 
     center_x = page_w / 2
 
-    logo_width = 46 * mm
-    _draw_logo(c, center_x - logo_width / 2, page_h - 46 * mm, width=logo_width)
+    # Brand logo (centered at the top)[cite: 1]
+    logo_width = 60 * mm
+    _draw_logo(c, center_x - logo_width / 2, page_h - 32 * mm, width=logo_width)
 
+    # Certificate heading
     c.setFillColor(BRAND_TEAL)
-    c.setFont("Helvetica-Bold", 10)
-    c.drawCentredString(center_x, page_h - 56 * mm, "CERTIFICATE OF COMPLETION")
+    c.setFont("Helvetica-Bold", 12)
+    c.drawCentredString(center_x, page_h - 52 * mm, "CERTIFICATE OF COMPLETION")
 
+    # Student name
     c.setFillColor(INK)
-    c.setFont("Helvetica-Bold", 30)
-    c.drawCentredString(center_x, page_h - 74 * mm, data["studentName"])
+    c.setFont("Helvetica-Bold", 28)
+    c.drawCentredString(center_x, page_h - 70 * mm, data["studentName"])
+
+    # Program details
+    start_date = data.get("startDate") or "N/A"
+    end_date = data.get("endDate") or "N/A"
 
     c.setFillColor(INK_MUTED)
     c.setFont("Helvetica", 12)
-    c.drawCentredString(center_x, page_h - 88 * mm, "has successfully completed the 1-month")
+    c.drawCentredString(center_x, page_h - 85 * mm,
+                        "Has successfully completed the 4 week virtual internship program in")
 
     c.setFillColor(INK)
-    c.setFont("Helvetica-Bold", 14)
-    c.drawCentredString(center_x, page_h - 96 * mm, f"{data['programTitle']} internship program")
+    c.setFont("Helvetica-Bold", 16)
+    c.drawCentredString(center_x, page_h - 95 * mm, data["programTitle"])
 
     c.setFillColor(INK_MUTED)
     c.setFont("Helvetica", 12)
-    c.drawCentredString(center_x, page_h - 104 * mm, "at NeuIntern")
+    c.drawCentredString(center_x, page_h - 105 * mm,
+                        f"With wonderful remark at NeuIntern from {start_date} to {end_date}")
 
-    # Signature block, mirroring the offer letter's sign-off
+    c.setFillColor(INK_MUTED)
+    c.setFont("Helvetica", 12)
+    c.drawCentredString(center_x, page_h - 115 * mm,
+                            "We appreciate their proactive approach and wish them the very best in all future academic and professional endeavors.")
+        
+
+    # Signature block positioned on the lower section[cite: 1]
+    signature_w = 38 * mm
+    signature_h = signature_w * (777240 / 1417320)
+    sig_y = 50 * mm
+    if os.path.exists(_SIGNATURE_PATH):
+        c.drawImage(ImageReader(_SIGNATURE_PATH), center_x - signature_w / 2, sig_y + 6 * mm, width=signature_w,
+                    height=signature_h, mask='auto')
+    
     c.setFillColor(INK)
     c.setFont("Helvetica-Bold", 11)
-    c.drawCentredString(center_x, 30 * mm, "Founder, NeuIntern")
+    c.drawCentredString(center_x, sig_y, "Founder, NeuIntern")
 
+    # Accreditation badges neatly aligned on the lower-left and lower-right inside margins[cite: 1]
+    badge_y = 22 * mm
+    if os.path.exists(_MSME_PATH):
+        msme_w = 26 * mm
+        msme_h = msme_w * (ImageReader(_MSME_PATH).getSize()[1] / ImageReader(_MSME_PATH).getSize()[0])
+        c.drawImage(ImageReader(_MSME_PATH), border_margin + 15 * mm, badge_y, width=msme_w, height=msme_h, mask='auto')
+        
+    if os.path.exists(_AICTE_PATH):
+        aicte_w = 20 * mm
+        aicte_h = aicte_w * (ImageReader(_AICTE_PATH).getSize()[1] / ImageReader(_AICTE_PATH).getSize()[0])
+        c.drawImage(ImageReader(_AICTE_PATH), page_w - border_margin - 15 * mm - aicte_w, badge_y,
+                    width=aicte_w, height=aicte_h, mask='auto')
+
+    # Footer with ID and issue date
     c.setFont("Helvetica", 9)
-    footer_y = border_margin + 12 * mm
+    footer_y = border_margin + 6 * mm
     c.setFillColor(INK_MUTED)
-    c.drawString(border_margin + 14 * mm, footer_y, f"VERIFIED ID: {data['certificateId']}")
+    c.drawString(border_margin + 12 * mm, footer_y,
+                 f"VERIFIED ID: {data['certificateId']}")
     if data.get("issuedOn"):
-        c.drawRightString(page_w - border_margin - 14 * mm, footer_y, f"ISSUED: {data['issuedOn']}")
+        c.drawRightString(page_w - border_margin - 12 * mm, footer_y,
+                          f"ISSUED: {data['issuedOn']}")
 
     c.showPage()
     c.save()
