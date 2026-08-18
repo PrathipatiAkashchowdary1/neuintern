@@ -3,3 +3,22 @@ __pycache__
 *.pyc
 .env
 neuintern.db
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+backend/.venv/
+backend/.env
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# Local DB
+backend/neuintern.db
+
+# Env files
+frontend/.env
+backend/.env
