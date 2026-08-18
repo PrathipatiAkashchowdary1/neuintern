@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+backend/.venv/
+backend/.env
+backend/neuintern.db
+
+# Node
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+
+# Local env / secrets
+.env
+.env.*
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
