@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     razorpay_key_id: str = ""
     razorpay_key_secret: str = ""
 
-    database_url: str = "sqlite:///./neuintern.db"
+    database_url: str = "postgresql://postgres:Nueintern_12@db.likixxwygqnlyronlozh.supabase.co:5432/postgres"
 
     smtp_host: str = ""
     smtp_port: int = 587
