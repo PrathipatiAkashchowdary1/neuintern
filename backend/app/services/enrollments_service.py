@@ -1,4 +1,5 @@
 from app.db.models import Enrollment
+from app.services.certificate_service import completion_date
 
 
 def enrollment_to_dict(e: Enrollment) -> dict:
@@ -11,6 +12,7 @@ def enrollment_to_dict(e: Enrollment) -> dict:
         "email": e.email,
         "phone": e.phone,
         "enrolledAt": e.enrolled_at.isoformat() if e.enrolled_at else None,
+        "completionDate": completion_date(e).isoformat() if e.enrolled_at else None,
         "githubLink": e.github_link,
         "linkedinLink": e.linkedin_link,
         "taskSubmitted": task_submitted,
@@ -21,7 +23,7 @@ def enrollment_to_dict(e: Enrollment) -> dict:
         "paidAt": e.paid_at.isoformat() if e.paid_at else None,
         "certificateId": e.certificate_id,
         "certificateUnlocked": e.certificate_unlocked,
-        # A simple linear stage indicator the frontend stepper can key off of
+        "certificateIssuedAt": e.certificate_issued_at.isoformat() if e.certificate_issued_at else None,
         "stage": _compute_stage(task_submitted, e.payment_status, e.certificate_unlocked),
     }
 
@@ -30,7 +32,7 @@ def _compute_stage(task_submitted: bool, payment_status: str, certificate_unlock
     if certificate_unlocked:
         return "certificate"
     if payment_status == "paid":
-        return "certificate"
+        return "waiting"
     if task_submitted:
         return "payment"
     return "task"

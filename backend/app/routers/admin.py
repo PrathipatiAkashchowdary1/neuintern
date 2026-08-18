@@ -8,6 +8,7 @@ from app.db.models import ContactSubmission, Enrollment, Program, User
 from app.deps import require_admin
 from app.schemas.admin_programs import ProgramCreate, ProgramUpdate
 from app.services.enrollments_service import admin_enrollment_to_dict
+from app.services.certificate_service import process_due_certificates
 from app.services.programs_service import apply_program_fields, program_to_dict
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -249,3 +250,16 @@ async def admin_delete_message(
     db.delete(message)
     db.commit()
     return {"success": True, "message": "Message deleted."}
+
+
+
+# ---------- Certificates ----------
+
+@router.post("/certificates/process-due")
+async def admin_process_due_certificates(_admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    """Manually runs the same check the hourly background scheduler does —
+    unlocks and emails any certificate whose course completion date has
+    passed. Useful for testing, or for not waiting up to an hour in
+    production when you know a batch just crossed their completion date."""
+    processed = process_due_certificates(db)
+    return {"success": True, "message": f"Processed {processed} certificate(s).", "data": {"processed": processed}}

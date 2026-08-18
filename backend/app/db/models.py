@@ -144,3 +144,4 @@ class Enrollment(Base):
     # Certificate
     certificate_id: Mapped[str] = mapped_column(String, nullable=True)
     certificate_unlocked: Mapped[bool] = mapped_column(Boolean, default=False)
+    certificate_issued_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)

@@ -8,6 +8,7 @@ import Stepper from '../components/dashboard/Stepper'
 import OfferLetter from '../components/dashboard/OfferLetter'
 import TaskSubmissionForm from '../components/dashboard/TaskSubmissionForm'
 import CertificatePayment from '../components/dashboard/CertificatePayment'
+import CertificateWaiting from '../components/dashboard/CertificateWaiting'
 import CertificateView from '../components/dashboard/CertificateView'
 import { useAuth } from '../context/AuthContext'
 import { fetchMyEnrollments, fetchOfferLetter, fetchCertificate } from '../api/enrollments'
@@ -162,9 +163,14 @@ export default function Dashboard() {
                     <TaskSubmissionForm enrollment={activeEnrollment} onSubmitted={handleTaskSubmitted} />
                   </motion.div>
 
-                  {activeEnrollment.taskSubmitted && !activeEnrollment.certificateUnlocked && (
+                  {activeEnrollment.taskSubmitted && activeEnrollment.paymentStatus !== 'paid' && (
                     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
                       <CertificatePayment enrollment={activeEnrollment} onPaid={handlePaid} />
+                    </motion.div>
+                  )}
+                  {activeEnrollment.paymentStatus === 'paid' && !activeEnrollment.certificateUnlocked && (
+                    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+                      <CertificateWaiting enrollment={activeEnrollment} />
                     </motion.div>
                   )}
 

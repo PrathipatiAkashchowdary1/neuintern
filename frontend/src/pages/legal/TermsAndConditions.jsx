@@ -4,7 +4,7 @@ export default function TermsAndConditions() {
   return (
     <LegalPageLayout title="Terms & Conditions" path="/terms-and-conditions">
       <p>
-  Welcome to NeuIntern. By accessing or using the NeuIntern website, registering for an account, or enrolling in any of our internship programs, you agree to be bound by the following Terms & Conditions. If you do not agree to all the terms and conditions of this agreement, you may not access the website or use our services.
+  Welcome to NeuIntern, a platform operated by Vivivdone Pvt. Ltd. ("NeuIntern", "we", "us", or "our"). By accessing or using the NeuIntern website, registering for an account, or enrolling in any of our internship programs, you agree to be bound by these Terms & Conditions.
 </p>
 
 <h2>Eligibility and registration</h2>

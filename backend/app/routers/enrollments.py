@@ -2,17 +2,23 @@ import hashlib
 import hmac
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Request, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.limiter import limiter
 from app.db.base import get_db
-from app.db.models import CERTIFICATE_FEE_INR, Certificate, Enrollment, Program, User
+from app.db.models import CERTIFICATE_FEE_INR, Enrollment, Program, User
 from app.deps import get_current_user
 from app.schemas.enrollments import EnrollRequest, TaskSubmitRequest
 from app.schemas.payments import VerifyPaymentRequest
+from app.services.certificate_service import (
+    completion_date,
+    certificate_pdf_payload,
+    is_course_complete,
+    unlock_and_email_certificate,
+)
 from app.services.enrollments_service import enrollment_to_dict
 from app.services.email_service import send_email_with_attachments
 from app.services.pdf_service import generate_certificate_pdf, generate_invoice_pdf, generate_offer_letter_pdf
@@ -33,7 +39,6 @@ def _get_owned_enrollment(enrollment_id: str, user: User, db: Session) -> Enroll
 @router.post("", status_code=201)
 async def enroll(
     payload: EnrollRequest,
-    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -64,23 +69,7 @@ async def enroll(
     db.commit()
     db.refresh(enrollment)
 
-    # Prepare offer letter PDF and email payload now (while the DB object is still usable),
-    # then schedule the actual sending as a background task so the HTTP response is fast.
-    offer_payload = _offer_letter_pdf_payload(enrollment)
-    pdf_buffer = generate_offer_letter_pdf(offer_payload)
-    filename = f"NeuIntern-Offer-Letter-{enrollment.id[:8]}.pdf"
-    subject = f"Your NeuIntern Offer Letter — {enrollment.program_title}"
-    body = (
-        f"Hi {enrollment.name},\n\n"
-        f"Congratulations on enrolling in the {enrollment.program_title} internship program! "
-        f"Your official offer letter is attached.\n\n"
-        f"Next step: log in to your dashboard and submit your task (GitHub + LinkedIn links) "
-        f"to move on to certification.\n\n"
-        f"— The NeuIntern Team"
-    )
-    attachments = [(filename, pdf_buffer.read())]
-    # Schedule the send in the background (non-blocking response)
-    background_tasks.add_task(send_email_with_attachments, enrollment.email, subject, body, attachments)
+    _email_offer_letter(enrollment)
 
     return {"success": True, "data": enrollment_to_dict(enrollment)}
 
@@ -247,7 +236,6 @@ async def create_certificate_order(
 async def verify_certificate_payment(
     enrollment_id: str,
     payload: VerifyPaymentRequest,
-    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -270,90 +258,30 @@ async def verify_certificate_payment(
     enrollment.razorpay_payment_id = payload.razorpay_payment_id
     enrollment.razorpay_signature = payload.razorpay_signature
     enrollment.paid_at = datetime.now(timezone.utc)
-
-    cert_id = f"NI-{datetime.now(timezone.utc).year}-{enrollment.id[:8].upper()}"
-    enrollment.certificate_id = cert_id
-    enrollment.certificate_unlocked = True
-    db.add(
-        Certificate(
-            certificate_id=cert_id,
-            student_name=enrollment.name,
-            program=enrollment.program_title,
-            issued_on=datetime.now(timezone.utc).date().isoformat(),
-        )
-    )
     db.commit()
+    db.refresh(enrollment)
 
-    # Prepare certificate PDF and schedule sending in the background
-    cert_data = _certificate_data(enrollment)
-    if enrollment.paid_at:
-        cert_data["issuedOn"] = enrollment.paid_at.strftime("%B %d, %Y")
-    cert_pdf = generate_certificate_pdf(cert_data)
-    cert_filename = f"NeuIntern-Certificate-{enrollment.certificate_id}.pdf"
-    cert_subject = f"Your NeuIntern Certificate — {enrollment.program_title}"
-    cert_body = (
-        f"Hi {enrollment.name},\n\n"
-        f"Congratulations on completing the {enrollment.program_title} internship program! "
-        f"Your certificate is attached (ID: {enrollment.certificate_id}).\n\n"
-        f"You can also verify this certificate any time on our website.\n\n"
-        f"— The NeuIntern Team"
-    )
-    cert_attachments = [(cert_filename, cert_pdf.read())]
-    background_tasks.add_task(send_email_with_attachments, enrollment.email, cert_subject, cert_body, cert_attachments)
+    # Payment confirmation goes out immediately regardless of course timing.
+    _email_invoice(enrollment)
 
-    # Prepare invoice PDF and schedule sending in the background
-    invoice_data = _invoice_data(enrollment)
-    invoice_pdf = generate_invoice_pdf(invoice_data)
-    invoice_filename = f"NeuIntern-Invoice-{invoice_data['invoiceNumber']}.pdf"
-    invoice_subject = f"Payment Receipt — {invoice_data['invoiceNumber']}"
-    invoice_body = (
-        f"Hi {enrollment.name},\n\n"
-        f"Thanks for your payment of {enrollment.currency} {enrollment.amount:.2f} for the "
-        f"{enrollment.program_title} certificate fee. Your receipt is attached.\n\n"
-        f"— The NeuIntern Team"
-    )
-    invoice_attachments = [(invoice_filename, invoice_pdf.read())]
-    background_tasks.add_task(send_email_with_attachments, enrollment.email, invoice_subject, invoice_body, invoice_attachments)
+    # The certificate itself is a different story: it only unlocks (and only
+    # gets emailed) once the course's completion date has actually passed.
+    # Most students pay mid-course, so normally the background scheduler
+    # (see app/services/certificate_service.py + app/main.py) picks this up
+    # later. The one exception handled here: someone who pays *after* the
+    # course has already ended shouldn't have to wait for the next scheduler
+    # tick — unlock immediately in that case.
+    message = "Payment verified. Your certificate will be emailed once the course is complete."
+    if is_course_complete(enrollment):
+        unlock_and_email_certificate(db, enrollment)
+        db.refresh(enrollment)
+        message = "Payment verified. Your certificate is ready!"
 
     return {
         "success": True,
-        "message": "Payment verified. Your certificate is ready!",
+        "message": message,
         "data": enrollment_to_dict(enrollment),
     }
-
-
-def _certificate_data(enrollment: Enrollment) -> dict:
-    start_date = enrollment.enrolled_at or datetime.now(timezone.utc)
-    end_date = start_date + timedelta(days=28)
-    return {
-        "certificateId": enrollment.certificate_id,
-        "studentName": enrollment.name,
-        "programTitle": enrollment.program_title,
-        "startDate": start_date.strftime("%B %d, %Y"),
-        "endDate": end_date.strftime("%B %d, %Y"),
-        "issuedOn": enrollment.paid_at.date().isoformat() if enrollment.paid_at else None,
-    }
-
-
-def _email_certificate(enrollment: Enrollment) -> None:
-    data = _certificate_data(enrollment)
-    if enrollment.paid_at:
-        data["issuedOn"] = enrollment.paid_at.strftime("%B %d, %Y")
-
-    pdf_buffer = generate_certificate_pdf(data)
-    filename = f"NeuIntern-Certificate-{enrollment.certificate_id}.pdf"
-    send_email_with_attachments(
-        to=enrollment.email,
-        subject=f"Your NeuIntern Certificate — {enrollment.program_title}",
-        body=(
-            f"Hi {enrollment.name},\n\n"
-            f"Congratulations on completing the {enrollment.program_title} internship program! "
-            f"Your certificate is attached (ID: {enrollment.certificate_id}).\n\n"
-            f"You can also verify this certificate any time on our website.\n\n"
-            f"— The NeuIntern Team"
-        ),
-        attachments=[(filename, pdf_buffer.read())],
-    )
 
 
 def _invoice_data(enrollment: Enrollment) -> dict:
@@ -409,14 +337,23 @@ async def get_invoice_pdf(
     )
 
 
+def _certificate_lock_message(enrollment: Enrollment) -> str:
+    if enrollment.payment_status != "paid":
+        return "Complete your task and payment to unlock the certificate."
+    return (
+        f"Payment received — your certificate unlocks on "
+        f"{completion_date(enrollment).strftime('%B %d, %Y')}, once the course is complete."
+    )
+
+
 @router.get("/{enrollment_id}/certificate")
 async def get_certificate(
     enrollment_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ):
     enrollment = _get_owned_enrollment(enrollment_id, current_user, db)
     if not enrollment.certificate_unlocked:
-        raise HTTPException(status_code=403, detail="Complete your task and payment to unlock the certificate.")
-    return {"success": True, "data": _certificate_data(enrollment)}
+        raise HTTPException(status_code=403, detail=_certificate_lock_message(enrollment))
+    return {"success": True, "data": certificate_pdf_payload(enrollment)}
 
 
 @router.get("/{enrollment_id}/certificate/pdf")
@@ -425,12 +362,9 @@ async def get_certificate_pdf(
 ):
     enrollment = _get_owned_enrollment(enrollment_id, current_user, db)
     if not enrollment.certificate_unlocked:
-        raise HTTPException(status_code=403, detail="Complete your task and payment to unlock the certificate.")
+        raise HTTPException(status_code=403, detail=_certificate_lock_message(enrollment))
 
-    data = _certificate_data(enrollment)
-    if enrollment.paid_at:
-        data["issuedOn"] = enrollment.paid_at.strftime("%B %d, %Y")
-
+    data = certificate_pdf_payload(enrollment)
     pdf_buffer = generate_certificate_pdf(data)
     filename = f"NeuIntern-Certificate-{enrollment.certificate_id}.pdf"
     return StreamingResponse(

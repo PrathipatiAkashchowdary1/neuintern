@@ -27,7 +27,7 @@ export default function CertificatePayment({ enrollment, onPaid }) {
         description: `Certificate fee — ${enrollment.programTitle}`,
         order_id: order.orderId,
         prefill: { name: enrollment.name, email: enrollment.email, contact: enrollment.phone },
-        theme: { color: '#7C3AED' },
+        theme: { color: '#00ABBC' },
         handler: async (response) => {
           try {
             const result = await verifyCertificatePayment(enrollment.id, {

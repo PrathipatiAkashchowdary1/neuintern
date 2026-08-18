@@ -4,7 +4,7 @@ export default function PrivacyPolicy() {
   return (
     <LegalPageLayout title="Privacy Policy" path="/privacy-policy">
      <p>
-  Welcome to NeuIntern ("we", "us"). We are committed to protecting your personal information and your right to privacy. This Privacy Policy outlines our practices regarding the collection, use, and disclosure of your information when you visit our website, submit inquiries, or apply to our internship programs. Please read this policy carefully to understand how we handle your data.
+  NeuIntern is operated by Vivivdone Pvt. Ltd. In this Privacy Policy, "NeuIntern", "we", "us", and "our" refer to Vivivdone Pvt. Ltd. This Privacy Policy outlines our practices regarding the collection, use, and disclosure of your information when you visit our website, submit inquiries, or apply to our internship programs. Please read this policy carefully to understand how we handle your data.
 </p>
 
 <h2>Information we collect</h2>
@@ -34,7 +34,7 @@ export default function PrivacyPolicy() {
 
 <h2>Contact</h2>
 <p>
-  If you have questions, comments, or concerns about this Privacy Policy or our data practices, or if you would like to exercise your privacy rights, please contact us at info@neuintern.in.
+  If you have questions, comments, or concerns about this Privacy Policy or our data practices, or if you would like to exercise your privacy rights, please contact us at contact@neuintern.in.
 </p>
     </LegalPageLayout>
   )

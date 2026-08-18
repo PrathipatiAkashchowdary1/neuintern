@@ -100,7 +100,7 @@ export default function Footer() {
 
       <div className="border-t border-white/10">
         <div className="container-page py-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-ink-100/50">
-          <p>© {new Date().getFullYear()} NeuIntern. All rights reserved to Vivivdone PVT LTD.</p>
+          <p>© {new Date().getFullYear()} Vivivdone Pvt. Ltd. All rights reserved. NeuIntern is operated by Vivivdone Pvt. Ltd.</p>
           <div className="flex flex-wrap gap-x-5 gap-y-1.5 justify-center">
             {resourceLinks.map((link) => (
               <Link key={link.to} to={link.to} className="hover:text-white transition-colors">

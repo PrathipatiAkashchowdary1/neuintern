@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from apscheduler.schedulers.background import BackgroundScheduler
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
@@ -10,6 +11,7 @@ from app.core.limiter import limiter
 from app.db.base import Base, SessionLocal, engine
 from app.db.seed import seed_admin_user, seed_certificates, seed_programs
 from app.routers import admin, auth, certificate, contact, enrollments, payments, programs, testimonials
+from app.services.certificate_service import process_due_certificates
 
 app = FastAPI(title=settings.app_name)
 
@@ -25,9 +27,6 @@ app.add_middleware(
 )
 
 
-# Normalize error responses to { success: false, message } so the frontend's
-# existing axios error handling (which reads response.data.message) works
-# identically whether it's talking to this backend or the Node one.
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     return JSONResponse(status_code=exc.status_code, content={"success": False, "message": exc.detail})
@@ -40,6 +39,22 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     return JSONResponse(status_code=422, content={"success": False, "message": message})
 
 
+def _run_certificate_check() -> None:
+    """Scheduler job: unlocks + emails any certificate whose course
+    completion date has now passed. Runs on its own DB session since it's
+    not triggered by a request (no FastAPI dependency injection here)."""
+    db = SessionLocal()
+    try:
+        processed = process_due_certificates(db)
+        if processed:
+            print(f"[certificate-scheduler] Unlocked and emailed {processed} certificate(s).")
+    finally:
+        db.close()
+
+
+scheduler = BackgroundScheduler()
+
+
 @app.on_event("startup")
 def on_startup():
     Base.metadata.create_all(bind=engine)
@@ -50,6 +65,18 @@ def on_startup():
         seed_admin_user(db)
     finally:
         db.close()
+
+    # Checks hourly for enrollments whose course completion date has passed
+    # since the last check, and unlocks/emails their certificates. Also runs
+    # once immediately on startup so nothing sits stale after a restart.
+    scheduler.add_job(_run_certificate_check, "interval", hours=1, id="certificate_check", replace_existing=True)
+    scheduler.start()
+    _run_certificate_check()
+
+
+@app.on_event("shutdown")
+def on_shutdown():
+    scheduler.shutdown(wait=False)
 
 
 @app.get("/api/health")
