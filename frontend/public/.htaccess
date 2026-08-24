@@ -4,6 +4,10 @@
   RewriteEngine On
   RewriteBase /
 
+  # Redirect www → non-www
+  RewriteCond %{HTTP_HOST} ^www\.neuintern\.in$ [NC]
+  RewriteRule ^(.*)$ https://neuintern.in/$1 [R=301,L]
+
   # Serve existing files/directories directly (assets, images, etc.)
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d

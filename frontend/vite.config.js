@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react'
 // GoDaddy shared hosting: relative base so assets resolve from any subfolder
 export default defineConfig({
   plugins: [react()],
-  base: './',
+  base: '/',
   build: {
     outDir: 'dist',
     assetsDir: 'assets',

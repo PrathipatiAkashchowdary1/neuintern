@@ -45,12 +45,14 @@ on first backend startup in `backend/app/db/seed.py`.
 
 ```bash
 cd backend
-python3 -m venv venv
+py -3.12 -m venv venv
 source venv/bin/activate        # Windows: venv\Scripts\activate
 .\venv\Scripts\Activate.ps1 -> # when runing the powershell to create virtual env easy 
 pip install -r requirements.txt
 cp .env.example .env
 ```
+
+Use Python 3.12.x for the backend. The current FastAPI/Pydantic stack is not compatible with Python 3.14 beta, which caused import-time runtime errors during startup.
 
 Edit `backend/.env` — at minimum set `JWT_SECRET`, and add Razorpay test keys from the
 [Razorpay Dashboard](https://dashboard.razorpay.com/app/keys) (Test Mode on) to actually

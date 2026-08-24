@@ -3,70 +3,70 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 
   <url>
-    <loc>https://www.neuintern.in/</loc>
+    <loc>https://neuintern.in/</loc>
     <lastmod>2026-07-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
 
   <url>
-    <loc>https://www.neuintern.in/about</loc>
+    <loc>https://neuintern.in/about</loc>
     <lastmod>2026-07-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
 
   <url>
-    <loc>https://www.neuintern.in/programs</loc>
+    <loc>https://neuintern.in/programs</loc>
     <lastmod>2026-07-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
 
   <url>
-    <loc>https://www.neuintern.in/certificate</loc>
+    <loc>https://neuintern.in/certificate</loc>
     <lastmod>2026-07-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
 
   <url>
-    <loc>https://www.neuintern.in/reviews</loc>
+    <loc>https://neuintern.in/reviews</loc>
     <lastmod>2026-07-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
 
   <url>
-    <loc>https://www.neuintern.in/contact</loc>
+    <loc>https://neuintern.in/contact</loc>
     <lastmod>2026-07-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
 
   <url>
-    <loc>https://www.neuintern.in/privacy-policy</loc>
+    <loc>https://neuintern.in/privacy-policy</loc>
     <lastmod>2026-07-23</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
 
   <url>
-    <loc>https://www.neuintern.in/terms-and-conditions</loc>
+    <loc>https://neuintern.in/terms-and-conditions</loc>
     <lastmod>2026-07-23</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
 
   <url>
-    <loc>https://www.neuintern.in/refund-policy</loc>
+    <loc>https://neuintern.in/refund-policy</loc>
     <lastmod>2026-07-23</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
 
   <url>
-    <loc>https://www.neuintern.in/cookie-policy</loc>
+    <loc>https://neuintern.in/cookie-policy</loc>
     <lastmod>2026-07-23</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
@@ -75,80 +75,109 @@
   <!-- Programs -->
 
   <url>
-    <loc>https://www.neuintern.in/programs/web-development</loc>
+    <loc>https://neuintern.in/programs/web-development</loc>
     <lastmod>2026-07-23</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
 
   <url>
-    <loc>https://www.neuintern.in/programs/frontend-development</loc>
+    <loc>https://neuintern.in/programs/frontend-development</loc>
     <lastmod>2026-07-23</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
 
   <url>
-    <loc>https://www.neuintern.in/programs/backend-development</loc>
+    <loc>https://neuintern.in/programs/backend-development</loc>
     <lastmod>2026-07-23</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
 
   <url>
-    <loc>https://www.neuintern.in/programs/react-development</loc>
+    <loc>https://neuintern.in/programs/react-development</loc>
     <lastmod>2026-07-23</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
 
   <url>
-    <loc>https://www.neuintern.in/programs/full-stack-development</loc>
+    <loc>https://neuintern.in/programs/full-stack-development</loc>
     <lastmod>2026-07-23</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
 
   <url>
-    <loc>https://www.neuintern.in/programs/python-programming</loc>
+    <loc>https://neuintern.in/programs/python-programming</loc>
     <lastmod>2026-07-23</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
 
   <url>
-    <loc>https://www.neuintern.in/programs/java-programming</loc>
+    <loc>https://neuintern.in/programs/java-programming</loc>
     <lastmod>2026-07-23</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
 
   <url>
-    <loc>https://www.neuintern.in/programs/artificial-intelligence</loc>
+    <loc>https://neuintern.in/programs/artificial-intelligence</loc>
     <lastmod>2026-07-23</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
 
   <url>
-    <loc>https://www.neuintern.in/programs/machine-learning</loc>
+    <loc>https://neuintern.in/programs/machine-learning</loc>
     <lastmod>2026-07-23</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
 
   <url>
-    <loc>https://www.neuintern.in/programs/data-science</loc>
+    <loc>https://neuintern.in/programs/data-science</loc>
     <lastmod>2026-07-23</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
 
   <url>
-    <loc>https://www.neuintern.in/programs/cyber-security</loc>
+    <loc>https://neuintern.in/programs/cyber-security</loc>
     <lastmod>2026-07-23</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
-
+  <url>
+    <loc>https://neuintern.in/programs/digital-marketing</loc>
+    <lastmod>2026-07-23</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://neuintern.in/programs/devops</loc>
+    <lastmod>2026-07-23</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://neuintern.in/programs/cloud-computing</loc>
+    <lastmod>2026-07-23</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://neuintern.in/programs/prompt-engineering</loc>
+    <lastmod>2026-07-23</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://neuintern.in/programs/ui-ux-design</loc>
+    <lastmod>2026-07-23</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
 </urlset>
+
