@@ -1,7 +1,8 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { FiLinkedin, FiInstagram, FiTwitter, FiMail, FiPhone, FiMapPin } from 'react-icons/fi'
 import Newsletter from '../common/Newsletter'
-import { programs } from '../../data/programs'
+import { fetchPrograms } from '../../api/programs'
 
 const quickLinks = [
   { to: '/', label: 'Home' },
@@ -19,7 +20,17 @@ const resourceLinks = [
 ]
 
 export default function Footer() {
-  const featuredPrograms = programs.slice(0, 5)
+  // The first few programs from the API; the list is simply empty if it can't be loaded.
+  const [featuredPrograms, setFeaturedPrograms] = useState([])
+  useEffect(() => {
+    let cancelled = false
+    fetchPrograms({ limit: 5 })
+      .then((list) => !cancelled && setFeaturedPrograms(list.slice(0, 5)))
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   return (
     <footer className="bg-ink-gradient text-white">

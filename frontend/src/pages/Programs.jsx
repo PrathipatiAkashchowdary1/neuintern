@@ -9,7 +9,6 @@ import Pagination from '../components/common/Pagination'
 import ProgramCard from '../components/programs/ProgramCard'
 import { ProgramGridSkeleton } from '../components/common/LoadingSkeleton'
 import { fetchPrograms, fetchCategories } from '../api/programs'
-import { categories as defaultCategories } from '../data/programs'
 
 const PAGE_SIZE = 9
 
@@ -20,7 +19,7 @@ export default function Programs() {
   const [page, setPage] = useState(1)
 
   const [allPrograms, setAllPrograms] = useState([])
-  const [categories, setCategories] = useState(defaultCategories)
+  const [categories, setCategories] = useState(['All'])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -32,8 +31,8 @@ export default function Programs() {
       .then((data) => {
         if (!cancelled) setAllPrograms(data)
       })
-      .catch((err) => {
-        if (!cancelled) setError(err.message || 'Unable to load programs right now.')
+      .catch(() => {
+        if (!cancelled) setError("We couldn't load the programs right now.")
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -78,7 +77,7 @@ export default function Programs() {
           <Breadcrumb items={[{ name: 'Home', path: '/' }, { name: 'Programs', path: '/programs' }]} />
           <div className="max-w-2xl mt-8">
             <span className="eyebrow">
-              {loading ? 'Programs' : `${allPrograms.length} ${allPrograms.length === 1 ? 'Program' : 'Programs'}`} · 4 Weeks Each
+              {loading || error ? 'Programs' : `${allPrograms.length} ${allPrograms.length === 1 ? 'Program' : 'Programs'}`} · 4 Weeks Each
             </span>
             <h1 className="text-4xl sm:text-5xl font-bold mt-4">Explore Internship Programs</h1>
             <p className="text-ink-400 mt-4 leading-relaxed">

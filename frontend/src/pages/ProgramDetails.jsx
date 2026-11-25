@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { FiClock, FiMonitor, FiAward, FiArrowRight, FiCheckCircle } from 'react-icons/fi'
 import Seo from '../seo/Seo'
@@ -29,20 +29,29 @@ export default function ProgramDetails() {
   const [program, setProgram] = useState(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
+  const [loadFailed, setLoadFailed] = useState(false)
+  const [attempt, setAttempt] = useState(0)
   const [enrolling, setEnrolling] = useState(false)
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
     setNotFound(false)
+    setLoadFailed(false)
     fetchProgramBySlug(slug)
       .then((data) => !cancelled && setProgram(data))
-      .catch(() => !cancelled && setNotFound(true))
+      .catch((err) => {
+        if (cancelled) return
+        // Only a real 404 means "no such program"; anything else (API down, timeout) is
+        // a temporary problem and must not be shown as a missing page.
+        if (err?.status === 404) setNotFound(true)
+        else setLoadFailed(true)
+      })
       .finally(() => !cancelled && setLoading(false))
     return () => {
       cancelled = true
     }
-  }, [slug])
+  }, [slug, attempt])
 
   const handleEnroll = async () => {
     if (!isAuthenticated) {
@@ -59,6 +68,19 @@ export default function ProgramDetails() {
   }
 
   if (loading) return <Loader label="Loading program" />
+  if (loadFailed) {
+    return (
+      <section className="min-h-[60vh] flex items-center justify-center pt-24">
+        <div className="container-page text-center">
+          <h1 className="text-2xl font-bold">We couldn&apos;t load this program</h1>
+          <p className="text-ink-400 mt-2">Please check your connection and try again.</p>
+          <button onClick={() => setAttempt((n) => n + 1)} className="btn-primary mt-6 inline-flex">
+            Try again
+          </button>
+        </div>
+      </section>
+    )
+  }
   if (notFound || !program) return <NotFound />
 
   return (
