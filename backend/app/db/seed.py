@@ -1,5 +1,6 @@
 import json
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -23,12 +24,23 @@ DEFAULT_ADMIN = {
 }
 
 
+def _commit_seed(db: Session) -> None:
+    """Commits a seed batch. With several workers starting at once, two can pass the
+    "already seeded?" check together; the loser hits a duplicate key. That means the
+    other worker has just inserted the same rows, so discard ours and carry on
+    instead of crashing the whole worker at start-up."""
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+
+
 def seed_certificates(db: Session) -> None:
     if db.query(Certificate).count() > 0:
         return
     for cert in SAMPLE_CERTIFICATES:
         db.add(Certificate(**cert))
-    db.commit()
+    _commit_seed(db)
 
 
 def seed_programs(db: Session) -> None:
@@ -56,7 +68,7 @@ def seed_programs(db: Session) -> None:
                 is_active=True,
             )
         )
-    db.commit()
+    _commit_seed(db)
 
 
 def seed_admin_user(db: Session) -> None:
@@ -82,4 +94,4 @@ def seed_admin_user(db: Session) -> None:
             role="admin",
         )
     )
-    db.commit()
+    _commit_seed(db)

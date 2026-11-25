@@ -279,3 +279,13 @@ class LoginThrottle(Base):
     failures: Mapped[int] = mapped_column(Integer, default=0)
     window_start: Mapped[datetime] = mapped_column(DateTime, default=now)
     locked_until: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+
+
+class JobLock(Base):
+    """One row per scheduled job; see app/services/job_lock.py."""
+
+    __tablename__ = "job_locks"
+
+    name: Mapped[str] = mapped_column(String(100), primary_key=True)
+    locked_until: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+    last_run_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)

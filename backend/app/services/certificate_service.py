@@ -11,6 +11,7 @@ A certificate is only unlocked — and only emailed — once BOTH are true:
 
 from datetime import datetime, timedelta, timezone
 
+from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from app.db.models import Certificate, Enrollment
@@ -47,24 +48,43 @@ def certificate_pdf_payload(enrollment: Enrollment) -> dict:
     }
 
 
-def unlock_certificate(db: Session, enrollment: Enrollment) -> dict:
+def unlock_certificate(db: Session, enrollment: Enrollment) -> dict | None:
     """DB half of unlocking: assigns the certificate ID, marks it unlocked and
     records it in the certificates table. Returns the PDF payload so the (slow)
     PDF + email half can run later, e.g. as a background task.
-    Caller must have already confirmed payment is complete AND the course
-    completion date has passed; this function does not re-check either."""
+
+    Atomic: the enrollment is claimed with a conditional UPDATE, so if two
+    workers (or the scheduler and an admin) try at once, exactly one gets the
+    payload and the other gets None, meaning "already unlocked, send nothing".
+    The claim and the public Certificate record commit together or not at all.
+
+    Caller must have already confirmed the course completion date has passed;
+    this function does not re-check that."""
     cert_id = f"NI-{datetime.now(timezone.utc).year}-{enrollment.id[:8].upper()}"
-    enrollment.certificate_id = cert_id
-    enrollment.certificate_unlocked = True
-    enrollment.certificate_issued_at = _now()
-    db.add(
-        Certificate(
-            certificate_id=cert_id,
-            student_name=enrollment.name,
-            program=enrollment.program_title,
-            issued_on=enrollment.certificate_issued_at.date().isoformat(),
+    issued_at = _now()
+    claimed = db.execute(
+        update(Enrollment)
+        .where(
+            Enrollment.id == enrollment.id,
+            Enrollment.payment_status == "paid",
+            Enrollment.certificate_unlocked.is_(False),
         )
+        .values(certificate_id=cert_id, certificate_unlocked=True, certificate_issued_at=issued_at)
     )
+    if claimed.rowcount != 1:
+        db.rollback()
+        db.refresh(enrollment)
+        return None
+
+    if db.get(Certificate, cert_id) is None:
+        db.add(
+            Certificate(
+                certificate_id=cert_id,
+                student_name=enrollment.name,
+                program=enrollment.program_title,
+                issued_on=issued_at.date().isoformat(),
+            )
+        )
     db.commit()
     db.refresh(enrollment)
     return certificate_pdf_payload(enrollment)
@@ -90,11 +110,15 @@ def send_certificate_email(to: str, student_name: str, program_title: str, data:
     )
 
 
-def unlock_and_email_certificate(db: Session, enrollment: Enrollment) -> None:
+def unlock_and_email_certificate(db: Session, enrollment: Enrollment) -> bool:
     """Unlock and email inline. For callers already running outside a request
-    (the scheduler, the admin "process due" job)."""
+    (the scheduler, the admin "process due" job). Returns False, sending nothing,
+    if someone else already unlocked it."""
     data = unlock_certificate(db, enrollment)
+    if data is None:
+        return False
     send_certificate_email(enrollment.email, enrollment.name, enrollment.program_title, data)
+    return True
 
 
 def process_due_certificates(db: Session) -> int:
@@ -111,7 +135,7 @@ def process_due_certificates(db: Session) -> int:
     processed = 0
     for enrollment in candidates:
         if is_course_complete(enrollment):
-            unlock_and_email_certificate(db, enrollment)
-            processed += 1
+            if unlock_and_email_certificate(db, enrollment):
+                processed += 1
 
     return processed

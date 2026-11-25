@@ -107,13 +107,14 @@ def mark_enrollment_paid(
         except Exception:
             logger.exception("Certificate unlock failed for enrollment %s", enrollment.id)
         else:
-            _dispatch(
-                background,
-                send_certificate_email,
-                enrollment.email,
-                enrollment.name,
-                enrollment.program_title,
-                cert_data,
-            )
+            if cert_data is not None:  # None: another worker already unlocked and emailed it
+                _dispatch(
+                    background,
+                    send_certificate_email,
+                    enrollment.email,
+                    enrollment.name,
+                    enrollment.program_title,
+                    cert_data,
+                )
 
     return True

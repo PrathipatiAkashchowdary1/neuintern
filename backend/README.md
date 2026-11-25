@@ -34,10 +34,6 @@ Tests run against a throwaway SQLite database and never send real email or call
 Razorpay, whatever your `.env` says (see `tests/conftest.py`). They cover the
 payment flow (order, verify, webhook, idempotency) and certificate unlocking.
 
-## Reminder emails
-
-A daily job (10:30 UTC) emails students who enrolled but haven't paid the
-certificate fee: one email if they never submitted the task, another if they
 ## Security & sessions
 
 **Sessions.** Logging in sets an `httpOnly` cookie (`neuintern_session`) holding the JWT,
@@ -71,6 +67,22 @@ submitted it but haven't paid. Pacing lives in `app/services/reminder_service.py
 first reminder 2 days after enrolling (task) / 1 day after submitting (payment),
 then every 3+ days, at most 3 per enrollment, and never for enrollments older
 than 60 days. Paid students are never emailed.
+## Background jobs & multiple workers
+
+Two jobs run inside the server: the hourly certificate unlock and the daily reminder
+emails. It is safe to run several workers (`uvicorn --workers 3`, gunicorn, etc.): each
+tick takes a database lock (`job_locks` table), so only one worker does the work, and a
+worker that crashes mid-job frees its lock after 30 minutes. Certificate unlocking is also
+atomic, so the scheduler, an admin's "process due" click and a late payment can never send
+the same certificate twice, and workers starting together no longer collide while seeding.
+
+To run the jobs in just one process instead, start the others with `SCHEDULER_ENABLED=false`.
+After upgrading, run `alembic upgrade head` (adds `job_locks`).
+
+## Reminder emails
+
+A daily job (10:30 UTC) emails students who enrolled but haven't paid the
+certificate fee: one email if they never submitted the task, another if they
 
 It is **off by default** (`REMINDERS_ENABLED=false`) so a deploy never emails
 existing students by surprise. To roll it out:

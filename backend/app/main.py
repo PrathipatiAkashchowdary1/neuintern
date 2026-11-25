@@ -1,4 +1,4 @@
-from datetime import timezone
+from datetime import timedelta, timezone
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -27,6 +27,7 @@ from app.routers import (
     unsubscribe,
 )
 from app.services.certificate_service import process_due_certificates
+from app.services.job_lock import run_exclusive
 from app.services.reminder_service import send_due_reminders
 from app.services.upload_service import upload_root
 
@@ -88,6 +89,16 @@ def _run_reminder_check() -> None:
         db.close()
 
 
+# Every worker runs a scheduler, so each tick goes through a database lock and only
+# one worker actually does the work (see app/services/job_lock.py).
+def _scheduled_certificate_check() -> None:
+    run_exclusive("certificate_check", _run_certificate_check, min_interval=timedelta(minutes=50), ttl=timedelta(minutes=30))
+
+
+def _scheduled_reminder_check() -> None:
+    run_exclusive("reminder_check", _run_reminder_check, min_interval=timedelta(hours=20), ttl=timedelta(hours=1))
+
+
 scheduler = BackgroundScheduler()
 
 
@@ -104,24 +115,29 @@ def on_startup():
     finally:
         db.close()
 
+    if not settings.scheduler_enabled:
+        return  # this process serves requests only; another one runs the jobs
+
     # Checks hourly for enrollments whose course completion date has passed
     # since the last check, and unlocks/emails their certificates. Also runs
-    # once immediately on startup so nothing sits stale after a restart.
-    scheduler.add_job(_run_certificate_check, "interval", hours=1, id="certificate_check", replace_existing=True)
-    scheduler.start()
-    _run_certificate_check()
+    # once immediately on startup so nothing sits stale after a restart (the
+    # 1-minute interval just stops N workers starting together from all running it).
+    scheduler.add_job(_scheduled_certificate_check, "interval", hours=1, id="certificate_check", replace_existing=True)
 
     # Once a day at 10:30 UTC (16:00 IST), a sensible hour to receive mail.
     # Deliberately NOT run at startup: restarts must not trigger sends.
     scheduler.add_job(
-        _run_reminder_check, "cron", hour=10, minute=30, timezone=timezone.utc,
+        _scheduled_reminder_check, "cron", hour=10, minute=30, timezone=timezone.utc,
         id="reminder_check", replace_existing=True,
     )
+    scheduler.start()
+    run_exclusive("certificate_check", _run_certificate_check, min_interval=timedelta(minutes=1), ttl=timedelta(minutes=30))
 
 
 @app.on_event("shutdown")
 def on_shutdown():
-    scheduler.shutdown(wait=False)
+    if scheduler.running:  # not started when SCHEDULER_ENABLED=false
+        scheduler.shutdown(wait=False)
 
 
 @app.get("/api/health")

@@ -39,6 +39,11 @@ class Settings(BaseSettings):
     smtp_from: str = "NeuIntern <contact@neuintern.in>"
     contact_notify_email: str = "contact@neuintern.in"  # where contact form submissions are sent
 
+    # Run the background jobs (certificate unlock, reminders) in this process.
+    # Safe to leave on with several workers: jobs take a database lock, so only
+    # one runs each tick. Set false to run them in a single dedicated process.
+    scheduler_enabled: bool = True
+
     # Reminder emails to students who enrolled but have not paid. Off by
     # default so deploying never emails existing students unexpectedly; use the
     # admin dry run first, then set REMINDERS_ENABLED=true.
