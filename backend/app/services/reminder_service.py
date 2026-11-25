@@ -8,7 +8,8 @@ Two stalls are covered, each with its own email:
 Pacing (all constants below): the first reminder goes out a short while after
 the student stalled, later ones are spaced out, and there is a hard cap on the
 number of reminders and on how old an enrollment can be. Paid enrollments are
-never emailed.
+never emailed, and neither are students who used the unsubscribe link
+(User.reminders_opt_out).
 
 Each send first "claims" the reminder with a compare-and-set UPDATE, so two
 workers running the job at once (or an admin trigger overlapping the
@@ -19,11 +20,12 @@ claim is released so the next run retries.
 import logging
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import update
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.db.models import CERTIFICATE_FEE_INR, Enrollment
+from app.core.security import make_unsubscribe_token
+from app.db.models import CERTIFICATE_FEE_INR, Enrollment, User
 from app.services.certificate_service import completion_date
 from app.services.email_service import send_email
 
@@ -68,13 +70,37 @@ def is_reminder_due(enrollment: Enrollment, now: datetime) -> bool:
     return enrollment.last_reminder_at is not None and now - enrollment.last_reminder_at >= REMINDER_SPACING
 
 
+def _opted_out_user_ids():
+    return select(User.id).where(User.reminders_opt_out.is_(True))
+
+
+def unsubscribe_url(enrollment: Enrollment) -> str:
+    token = make_unsubscribe_token(enrollment.user_id)
+    return f"{settings.frontend_url.rstrip('/')}/unsubscribe?token={token}"
+
+
+def unsubscribe_headers(enrollment: Enrollment) -> dict[str, str]:
+    """RFC 8058 one-click unsubscribe, so Gmail/Apple Mail show their own
+    "Unsubscribe" button. Needs the API's public URL; skipped when unset (the
+    link in the email body still works)."""
+    if not settings.api_public_url:
+        return {}
+    token = make_unsubscribe_token(enrollment.user_id)
+    return {
+        "List-Unsubscribe": f"<{settings.api_public_url.rstrip('/')}/api/unsubscribe/{token}>",
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    }
+
+
 def build_reminder(enrollment: Enrollment) -> tuple[str, str]:
     """(subject, body) for this student's current stall."""
     dashboard = f"{settings.frontend_url.rstrip('/')}/dashboard"
     ends = completion_date(enrollment).strftime("%B %d, %Y")
     footer = (
         "\n\nIf you've already done this, please ignore this email.\n"
-        "You're receiving it because you enrolled in a NeuIntern program.\n\n"
+        "You're receiving it because you enrolled in a NeuIntern program. "
+        "Don't want these reminders? Unsubscribe here:\n"
+        f"{unsubscribe_url(enrollment)}\n\n"
         "— The NeuIntern Team"
     )
 
@@ -107,6 +133,7 @@ def _claim(db: Session, enrollment: Enrollment, now: datetime) -> bool:
             Enrollment.id == enrollment.id,
             Enrollment.reminder_count == enrollment.reminder_count,
             Enrollment.payment_status != "paid",
+            Enrollment.user_id.not_in(_opted_out_user_ids()),
         )
         .values(reminder_count=enrollment.reminder_count + 1, last_reminder_at=now)
     )
@@ -131,7 +158,11 @@ def send_due_reminders(db: Session, *, now: datetime | None = None, dry_run: boo
     now = now or _now()
     candidates = (
         db.query(Enrollment)
-        .filter(Enrollment.payment_status != "paid", Enrollment.reminder_count < MAX_REMINDERS)
+        .filter(
+            Enrollment.payment_status != "paid",
+            Enrollment.reminder_count < MAX_REMINDERS,
+            Enrollment.user_id.not_in(_opted_out_user_ids()),
+        )
         .all()
     )
     due = [e for e in candidates if is_reminder_due(e, now)]
@@ -142,11 +173,12 @@ def send_due_reminders(db: Session, *, now: datetime | None = None, dry_run: boo
     for enrollment in due:
         previous_count, previous_last = enrollment.reminder_count, enrollment.last_reminder_at
         subject, body = build_reminder(enrollment)  # built before the claim: ORM state is fresh here
+        headers = unsubscribe_headers(enrollment)
         to, enrollment_id = enrollment.email, enrollment.id
         if not _claim(db, enrollment, now):
             continue  # another worker got there first
         try:
-            send_email(to=to, subject=subject, body=body)
+            send_email(to=to, subject=subject, body=body, headers=headers)
         except Exception:
             logger.exception("Reminder email failed for enrollment %s; will retry next run", enrollment_id)
             _release(db, enrollment_id, previous_count + 1, previous_last)

@@ -18,7 +18,7 @@ from tests.conftest import naive_utc_now
 @pytest.fixture
 def mailbox(monkeypatch):
     sent = []
-    monkeypatch.setattr(reminder_service, "send_email", lambda to, subject, body: sent.append((to, subject, body)))
+    monkeypatch.setattr(reminder_service, "send_email", lambda to, subject, body, headers=None: sent.append((to, subject, body)))
     return sent
 
 
@@ -97,6 +97,7 @@ class TestContent:
         assert "GitHub and LinkedIn" in body
         assert "/dashboard" in body
         assert "ignore this email" in body
+        assert "/unsubscribe?token=" in body
 
     def test_payment_stage_email_mentions_fee_and_certificate_timing(self, make_user, make_enrollment):
         e = make_enrollment(make_user(), days_ago=3, task_submitted_at=_submitted(2))
@@ -109,6 +110,7 @@ class TestContent:
         monkeypatch.setattr("app.core.config.settings.frontend_url", "https://staging.example.com/")
         _, body = build_reminder(make_enrollment(make_user(), days_ago=3))
         assert "https://staging.example.com/dashboard" in body
+        assert "https://staging.example.com/unsubscribe?token=" in body
 
 
 # --------------------------------------------------------------------------
@@ -172,7 +174,7 @@ class TestSending:
         fresh = _fresh(db, e)
         assert fresh.reminder_count == 0 and fresh.last_reminder_at is None
 
-        monkeypatch.setattr(reminder_service, "send_email", lambda to, subject, body: mailbox.append(to))
+        monkeypatch.setattr(reminder_service, "send_email", lambda to, subject, body, headers=None: mailbox.append(to))
         assert send_due_reminders(db) == [e.id]
 
     def test_one_failure_does_not_block_the_rest(self, db, monkeypatch, make_user, make_enrollment):
@@ -180,7 +182,7 @@ class TestSending:
         good = make_enrollment(make_user(email="good@example.com"), days_ago=3)
         delivered = []
 
-        def flaky(to, subject, body):
+        def flaky(to, subject, body, headers=None):
             if to == "bad@example.com":
                 raise RuntimeError("rejected")
             delivered.append(to)

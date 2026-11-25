@@ -16,6 +16,7 @@ const Contact = lazy(() => import('../pages/Contact'))
 const Login = lazy(() => import('../pages/Login'))
 const Register = lazy(() => import('../pages/Register'))
 const ForgotPassword = lazy(() => import('../pages/ForgotPassword'))
+const Unsubscribe = lazy(() => import('../pages/Unsubscribe'))
 const Dashboard = lazy(() => import('../pages/Dashboard'))
 const PrivacyPolicy = lazy(() => import('../pages/legal/PrivacyPolicy'))
 const TermsAndConditions = lazy(() => import('../pages/legal/TermsAndConditions'))
@@ -46,6 +47,7 @@ export default function AppRoutes() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/unsubscribe" element={<Unsubscribe />} />
 
           <Route element={<ProtectedRoute />}>
             <Route path="/dashboard" element={<Dashboard />} />

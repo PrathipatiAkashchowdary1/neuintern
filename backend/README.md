@@ -53,6 +53,17 @@ existing students by surprise. To roll it out:
 
 `POST /api/admin/reminders/send` (no `dryRun`) runs the job on demand.
 
+**Unsubscribe.** Every reminder ends with a per-student unsubscribe link
+(`{FRONTEND_URL}/unsubscribe?token=...`). It opens a page that asks for one click,
+then calls `POST /api/unsubscribe/{token}`, which sets `users.reminders_opt_out`
+(stops reminders for all of that student's enrollments; `DELETE` on the same URL
+undoes it). It is POST, not GET, so mail scanners that prefetch links can't
+unsubscribe anyone. Tokens are HMACs of the user id under `JWT_SECRET`, so they
+never expire, **but rotating `JWT_SECRET` invalidates links in old emails**.
+Set `API_PUBLIC_URL` (e.g. `https://api.neuintern.in`) to also send the RFC 8058
+`List-Unsubscribe` headers, which show the native Unsubscribe button in Gmail and
+Apple Mail. Offer letters, receipts and certificates are not affected.
+
 ## Database migrations (Alembic)
 
 The schema is managed by Alembic (`alembic/versions/`); the app no longer calls

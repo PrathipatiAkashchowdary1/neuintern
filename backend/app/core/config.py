@@ -32,7 +32,10 @@ class Settings(BaseSettings):
     # default so deploying never emails existing students unexpectedly; use the
     # admin dry run first, then set REMINDERS_ENABLED=true.
     reminders_enabled: bool = False
-    frontend_url: str = "https://www.neuintern.in"  # base for links in emails
+    frontend_url: str = "https://neuintern.in"  # base for links in emails (www redirects here)
+    # Public URL of THIS API (e.g. https://api.neuintern.in). Only used for the
+    # one-click List-Unsubscribe email header; omitted when empty.
+    api_public_url: str = ""
 
     otp_expiry_minutes: int = 10
     otp_verification_valid_minutes: int = 30

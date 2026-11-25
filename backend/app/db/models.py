@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
+import sqlalchemy as sa
 from sqlalchemy import Boolean, DateTime, Float, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -33,6 +34,10 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255))
     role: Mapped[str] = mapped_column(String(20), default="student")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    # Set by the unsubscribe link in reminder emails; stops all reminders.
+    reminders_opt_out: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=sa.false()
+    )
 
 
 class ContactSubmission(Base):

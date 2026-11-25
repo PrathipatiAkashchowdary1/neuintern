@@ -26,7 +26,7 @@ def run_email_task(fn, *args, **kwargs) -> None:
         logger.exception("Background email task %s failed", getattr(fn, "__name__", fn))
 
 
-def send_email(to: str, subject: str, body: str) -> None:
+def send_email(to: str, subject: str, body: str, headers: dict[str, str] | None = None) -> None:
     if not settings.smtp_configured:
         print(f"[DEV EMAIL — SMTP not configured] To: {to}\nSubject: {subject}\n\n{body}\n")
         return
@@ -35,6 +35,8 @@ def send_email(to: str, subject: str, body: str) -> None:
     msg["Subject"] = subject
     msg["From"] = settings.smtp_from
     msg["To"] = to
+    for name, value in (headers or {}).items():
+        msg[name] = value
 
     with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as server:
         server.starttls()
