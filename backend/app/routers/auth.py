@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -38,13 +38,15 @@ def _token_response(user: User) -> dict:
 
 @router.post("/send-otp")
 @limiter.limit("5/hour")
-async def send_otp(request: Request, payload: SendOtpRequest, db: Session = Depends(get_db)):
+async def send_otp(
+    request: Request, payload: SendOtpRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)
+):
     if payload.purpose == "register":
         existing = db.query(User).filter(User.email == payload.email).first()
         if existing:
             raise HTTPException(status_code=409, detail="An account with this email already exists")
 
-    otp = generate_and_send_otp(db, payload.email, payload.purpose)
+    otp = generate_and_send_otp(db, payload.email, payload.purpose, background_tasks)
 
     response = {"success": True, "message": f"A verification code has been sent to {payload.email}."}
     # Dev convenience only: with no SMTP configured, echo the code back so
@@ -65,7 +67,9 @@ async def verify_otp_route(request: Request, payload: VerifyOtpRequest, db: Sess
 
 @router.post("/forgot-password")
 @limiter.limit("5/hour")
-async def forgot_password(request: Request, payload: ForgotPasswordRequest, db: Session = Depends(get_db)):
+async def forgot_password(
+    request: Request, payload: ForgotPasswordRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)
+):
     user = db.query(User).filter(User.email == payload.email).first()
     generic_message = "If an account exists for that email, a reset code has been sent."
 
@@ -73,7 +77,7 @@ async def forgot_password(request: Request, payload: ForgotPasswordRequest, db: 
         # Don't reveal whether the email is registered.
         return {"success": True, "message": generic_message}
 
-    otp = generate_and_send_otp(db, payload.email, "reset_password")
+    otp = generate_and_send_otp(db, payload.email, "reset_password", background_tasks)
 
     response = {"success": True, "message": generic_message}
     if not settings.smtp_configured:

@@ -3,7 +3,7 @@ import hmac
 import json
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 @router.post("/webhook")
-async def razorpay_webhook(request: Request, db: Session = Depends(get_db)):
+async def razorpay_webhook(request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """Razorpay server-to-server confirmation. Covers the case where the
     student pays but never returns to our site (tab closed, network drop), so
     /enrollments/{id}/payment/verify is never called.
@@ -61,5 +61,5 @@ async def razorpay_webhook(request: Request, db: Session = Depends(get_db)):
         return {"success": True, "message": "Amount mismatch; not applied."}
 
     # No-op (returns False) if /verify already confirmed this payment.
-    mark_enrollment_paid(db, enrollment, payment_id)
+    mark_enrollment_paid(db, enrollment, payment_id, background=background_tasks)
     return {"success": True}

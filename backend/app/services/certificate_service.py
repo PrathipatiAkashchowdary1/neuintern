@@ -47,10 +47,12 @@ def certificate_pdf_payload(enrollment: Enrollment) -> dict:
     }
 
 
-def unlock_and_email_certificate(db: Session, enrollment: Enrollment) -> None:
-    """Generates the certificate, marks it unlocked, and emails it.
+def unlock_certificate(db: Session, enrollment: Enrollment) -> dict:
+    """DB half of unlocking: assigns the certificate ID, marks it unlocked and
+    records it in the certificates table. Returns the PDF payload so the (slow)
+    PDF + email half can run later, e.g. as a background task.
     Caller must have already confirmed payment is complete AND the course
-    completion date has passed — this function does not re-check either."""
+    completion date has passed; this function does not re-check either."""
     cert_id = f"NI-{datetime.now(timezone.utc).year}-{enrollment.id[:8].upper()}"
     enrollment.certificate_id = cert_id
     enrollment.certificate_unlocked = True
@@ -65,22 +67,34 @@ def unlock_and_email_certificate(db: Session, enrollment: Enrollment) -> None:
     )
     db.commit()
     db.refresh(enrollment)
+    return certificate_pdf_payload(enrollment)
 
-    data = certificate_pdf_payload(enrollment)
+
+def send_certificate_email(to: str, student_name: str, program_title: str, data: dict) -> None:
+    """PDF generation + SMTP. Takes plain data only (no ORM objects) so it is
+    safe to run after the request's DB session has been closed."""
+    cert_id = data["certificateId"]
     pdf_buffer = generate_certificate_pdf(data)
     filename = f"NeuIntern-Certificate-{cert_id}.pdf"
     send_email_with_attachments(
-        to=enrollment.email,
-        subject=f"Your NeuIntern Certificate — {enrollment.program_title}",
+        to=to,
+        subject=f"Your NeuIntern Certificate — {program_title}",
         body=(
-            f"Hi {enrollment.name},\n\n"
-            f"Congratulations on completing the {enrollment.program_title} internship program! "
+            f"Hi {student_name},\n\n"
+            f"Congratulations on completing the {program_title} internship program! "
             f"Your certificate is attached (ID: {cert_id}).\n\n"
             f"You can also verify this certificate any time on our website.\n\n"
             f"— The NeuIntern Team"
         ),
         attachments=[(filename, pdf_buffer.read())],
     )
+
+
+def unlock_and_email_certificate(db: Session, enrollment: Enrollment) -> None:
+    """Unlock and email inline. For callers already running outside a request
+    (the scheduler, the admin "process due" job)."""
+    data = unlock_certificate(db, enrollment)
+    send_certificate_email(enrollment.email, enrollment.name, enrollment.program_title, data)
 
 
 def process_due_certificates(db: Session) -> int:

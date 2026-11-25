@@ -2,7 +2,7 @@ import hashlib
 import hmac
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -18,7 +18,7 @@ from app.services.certificate_service import (
     certificate_pdf_payload,
 )
 from app.services.enrollments_service import enrollment_to_dict
-from app.services.email_service import send_email_with_attachments
+from app.services.email_service import run_email_task, send_email_with_attachments
 from app.services.payment_service import invoice_data as _invoice_data, mark_enrollment_paid
 from app.services.pdf_service import generate_certificate_pdf, generate_invoice_pdf, generate_offer_letter_pdf
 from app.services.razorpay_client import get_client
@@ -38,6 +38,7 @@ def _get_owned_enrollment(enrollment_id: str, user: User, db: Session) -> Enroll
 @router.post("", status_code=201)
 async def enroll(
     payload: EnrollRequest,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -68,7 +69,15 @@ async def enroll(
     db.commit()
     db.refresh(enrollment)
 
-    _email_offer_letter(enrollment)
+    background_tasks.add_task(
+        run_email_task,
+        send_offer_letter_email,
+        enrollment.email,
+        enrollment.name,
+        enrollment.program_title,
+        enrollment.id,
+        _offer_letter_pdf_payload(enrollment),
+    )
 
     return {"success": True, "data": enrollment_to_dict(enrollment)}
 
@@ -116,15 +125,17 @@ def _offer_letter_pdf_payload(enrollment: Enrollment) -> dict:
     return data
 
 
-def _email_offer_letter(enrollment: Enrollment) -> None:
-    pdf_buffer = generate_offer_letter_pdf(_offer_letter_pdf_payload(enrollment))
-    filename = f"NeuIntern-Offer-Letter-{enrollment.id[:8]}.pdf"
+def send_offer_letter_email(to: str, name: str, program_title: str, enrollment_id: str, pdf_data: dict) -> None:
+    """PDF + SMTP from plain data (no ORM objects), so it can run as a
+    background task after the request's DB session is closed."""
+    pdf_buffer = generate_offer_letter_pdf(pdf_data)
+    filename = f"NeuIntern-Offer-Letter-{enrollment_id[:8]}.pdf"
     send_email_with_attachments(
-        to=enrollment.email,
-        subject=f"Your NeuIntern Offer Letter — {enrollment.program_title}",
+        to=to,
+        subject=f"Your NeuIntern Offer Letter — {program_title}",
         body=(
-            f"Hi {enrollment.name},\n\n"
-            f"Congratulations on enrolling in the {enrollment.program_title} internship program! "
+            f"Hi {name},\n\n"
+            f"Congratulations on enrolling in the {program_title} internship program! "
             f"Your official offer letter is attached.\n\n"
             f"Next step: log in to your dashboard and submit your task (GitHub + LinkedIn links) "
             f"to move on to certification.\n\n"
@@ -235,6 +246,7 @@ async def create_certificate_order(
 async def verify_certificate_payment(
     enrollment_id: str,
     payload: VerifyPaymentRequest,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -264,7 +276,9 @@ async def verify_certificate_payment(
 
     # Sends the invoice (and unlocks the certificate if the course is already
     # over) only for the caller that actually flips unpaid -> paid.
-    mark_enrollment_paid(db, enrollment, payload.razorpay_payment_id, payload.razorpay_signature)
+    mark_enrollment_paid(
+        db, enrollment, payload.razorpay_payment_id, payload.razorpay_signature, background_tasks
+    )
 
     return {"success": True, "message": _paid_message(enrollment), "data": enrollment_to_dict(enrollment)}
 

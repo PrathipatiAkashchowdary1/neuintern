@@ -5,12 +5,25 @@ testable without a mail server — the same "gracefully degrade, don't crash"
 pattern used for Razorpay elsewhere in this backend.
 """
 
+import logging
 import smtplib
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
+
+
+def run_email_task(fn, *args, **kwargs) -> None:
+    """Runs an email-sending function so that a failure is logged, never raised.
+    Used for background tasks: the HTTP response has already gone out by the time
+    they run, so there is nobody to raise to."""
+    try:
+        fn(*args, **kwargs)
+    except Exception:
+        logger.exception("Background email task %s failed", getattr(fn, "__name__", fn))
 
 
 def send_email(to: str, subject: str, body: str) -> None:

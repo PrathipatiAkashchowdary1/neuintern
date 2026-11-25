@@ -1,21 +1,22 @@
 import random
 from datetime import datetime, timedelta, timezone
 
+from fastapi import BackgroundTasks
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.security import hash_password, verify_password
 from app.db.models import EmailOtp
-from app.services.email_service import send_otp_email
+from app.services.email_service import run_email_task, send_otp_email
 
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def generate_and_send_otp(db: Session, email: str, purpose: str) -> str:
+def generate_and_send_otp(db: Session, email: str, purpose: str, background: BackgroundTasks) -> str:
     """Creates a fresh 6-digit OTP for (email, purpose), stores it hashed,
-    emails it, and returns the plaintext code. The plaintext is only ever
+    queues the email as a background task, and returns the plaintext code. The plaintext is only ever
     used by the caller to optionally echo it back in dev mode (see
     send_otp_email / smtp_configured) — it is never stored unhashed."""
     otp = f"{random.randint(0, 999999):06d}"
@@ -30,7 +31,7 @@ def generate_and_send_otp(db: Session, email: str, purpose: str) -> str:
     db.add(record)
     db.commit()
 
-    send_otp_email(email, otp, purpose)
+    background.add_task(run_email_task, send_otp_email, email, otp, purpose)
     return otp
 
 

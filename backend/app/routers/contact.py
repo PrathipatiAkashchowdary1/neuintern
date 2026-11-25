@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Request
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -6,14 +6,16 @@ from app.core.limiter import limiter
 from app.db.base import get_db
 from app.db.models import ContactSubmission, NewsletterSubscriber
 from app.schemas.contact import ContactCreate, NewsletterCreate
-from app.services.email_service import send_email
+from app.services.email_service import run_email_task, send_email
 
 router = APIRouter(prefix="/api/contact", tags=["contact"])
 
 
 @router.post("", status_code=201)
 @limiter.limit("10/hour")
-async def submit_contact(request: Request, payload: ContactCreate, db: Session = Depends(get_db)):
+async def submit_contact(
+    request: Request, payload: ContactCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)
+):
     entry = ContactSubmission(
         name=payload.name, email=payload.email, subject=payload.subject, message=payload.message
     )
@@ -23,7 +25,9 @@ async def submit_contact(request: Request, payload: ContactCreate, db: Session =
 
     # Notify the company inbox with the full message, reply-to the sender's
     # own address so replying from the notification works naturally.
-    send_email(
+    background_tasks.add_task(
+        run_email_task,
+        send_email,
         to=settings.contact_notify_email,
         subject=f"New contact form message: {payload.subject}",
         body=(
@@ -37,7 +41,9 @@ async def submit_contact(request: Request, payload: ContactCreate, db: Session =
     )
 
     # Confirmation email back to whoever submitted the form.
-    send_email(
+    background_tasks.add_task(
+        run_email_task,
+        send_email,
         to=payload.email,
         subject="We've received your message — NeuIntern",
         body=(

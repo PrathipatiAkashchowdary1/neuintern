@@ -11,12 +11,13 @@ the invoice and unlocks the certificate. Retries and races are harmless.
 import logging
 from datetime import datetime, timezone
 
+from fastapi import BackgroundTasks
 from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from app.db.models import Enrollment
-from app.services.certificate_service import is_course_complete, unlock_and_email_certificate
-from app.services.email_service import send_email_with_attachments
+from app.services.certificate_service import is_course_complete, send_certificate_email, unlock_certificate
+from app.services.email_service import run_email_task, send_email_with_attachments
 from app.services.pdf_service import generate_invoice_pdf
 
 logger = logging.getLogger(__name__)
@@ -38,21 +39,30 @@ def invoice_data(enrollment: Enrollment) -> dict:
     }
 
 
-def email_invoice(enrollment: Enrollment) -> None:
-    data = invoice_data(enrollment)
+def send_invoice_email(data: dict) -> None:
+    """Takes the dict from invoice_data() (plain data, no ORM objects)."""
     pdf_buffer = generate_invoice_pdf(data)
     filename = f"NeuIntern-Invoice-{data['invoiceNumber']}.pdf"
     send_email_with_attachments(
-        to=enrollment.email,
+        to=data["email"],
         subject=f"Payment Receipt — {data['invoiceNumber']}",
         body=(
-            f"Hi {enrollment.name},\n\n"
-            f"Thanks for your payment of {enrollment.currency} {enrollment.amount:.2f} for the "
-            f"{enrollment.program_title} certificate fee. Your receipt is attached.\n\n"
+            f"Hi {data['studentName']},\n\n"
+            f"Thanks for your payment of {data['currency']} {data['amount']:.2f} for the "
+            f"{data['programTitle']} certificate fee. Your receipt is attached.\n\n"
             f"— The NeuIntern Team"
         ),
         attachments=[(filename, pdf_buffer.read())],
     )
+
+
+def _dispatch(background: BackgroundTasks | None, fn, *args) -> None:
+    """Queue on the request's background tasks, or run inline when there is no
+    request (e.g. called from a script). Failures are logged either way."""
+    if background is not None:
+        background.add_task(run_email_task, fn, *args)
+    else:
+        run_email_task(fn, *args)
 
 
 def mark_enrollment_paid(
@@ -60,9 +70,12 @@ def mark_enrollment_paid(
     enrollment: Enrollment,
     payment_id: str,
     signature: str | None = None,
+    background: BackgroundTasks | None = None,
 ) -> bool:
     """Marks the enrollment paid. Returns True only for the caller that
-    actually performed the transition (False if it was already paid)."""
+    actually performed the transition (False if it was already paid).
+    Invoice / certificate emails are queued on `background` when given, so the
+    HTTP response is not held up by PDF generation or SMTP."""
     result = db.execute(
         update(Enrollment)
         .where(Enrollment.id == enrollment.id, Enrollment.payment_status != "paid")
@@ -79,18 +92,23 @@ def mark_enrollment_paid(
         return False
 
     # Payment is already committed; a mail/PDF hiccup must not undo or fail it.
-    try:
-        email_invoice(enrollment)
-    except Exception:
-        logger.exception("Invoice email failed for enrollment %s", enrollment.id)
+    _dispatch(background, send_invoice_email, invoice_data(enrollment))
 
     # Normally the hourly scheduler unlocks the certificate once the course
     # ends. Someone paying after that point shouldn't wait for the next tick.
     if is_course_complete(enrollment) and not enrollment.certificate_unlocked:
         try:
-            unlock_and_email_certificate(db, enrollment)
-            db.refresh(enrollment)
+            cert_data = unlock_certificate(db, enrollment)
         except Exception:
             logger.exception("Certificate unlock failed for enrollment %s", enrollment.id)
+        else:
+            _dispatch(
+                background,
+                send_certificate_email,
+                enrollment.email,
+                enrollment.name,
+                enrollment.program_title,
+                cert_data,
+            )
 
     return True
