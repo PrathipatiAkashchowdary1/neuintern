@@ -1,5 +1,7 @@
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-# Shared limiter instance used by both contact and payments routers.
-limiter = Limiter(key_func=get_remote_address)
+from app.core.config import settings
+
+# Shared limiter instance used by the auth, contact and payment routers.
+limiter = Limiter(key_func=get_remote_address, enabled=settings.rate_limit_enabled)

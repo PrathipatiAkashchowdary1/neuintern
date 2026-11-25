@@ -188,10 +188,10 @@ function ResetStep({ email, devOtp, onDone, onResend, onError, clearError }) {
           type="password"
           {...register('newPassword', {
             required: 'Please enter a new password',
-            minLength: { value: 6, message: 'Password must be at least 6 characters' },
+            minLength: { value: 8, message: 'Password must be at least 8 characters' },
           })}
           className="w-full mt-1.5 rounded-xl border border-ink-900/10 px-4 py-3 text-sm focus:outline-none focus:border-brand-400 focus:ring-4 focus:ring-brand-100"
-          placeholder="At least 6 characters"
+          placeholder="At least 8 characters"
         />
         {errors.newPassword && <p className="text-red-500 text-xs mt-1">{errors.newPassword.message}</p>}
       </div>

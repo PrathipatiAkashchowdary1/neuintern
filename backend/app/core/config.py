@@ -39,6 +39,11 @@ class Settings(BaseSettings):
     smtp_from: str = "NeuIntern <contact@neuintern.in>"
     contact_notify_email: str = "contact@neuintern.in"  # where contact form submissions are sent
 
+    # Per-IP request limits (sending sign-up codes, logins, the contact form...). Always on in
+    # production (the server refuses to start otherwise); automated browser tests turn it off
+    # because they make many requests from one address.
+    rate_limit_enabled: bool = True
+
     # Run the background jobs (certificate unlock, reminders) in this process.
     # Safe to leave on with several workers: jobs take a database lock, so only
     # one runs each tick. Set false to run them in a single dedicated process.

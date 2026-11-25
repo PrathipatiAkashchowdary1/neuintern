@@ -96,6 +96,13 @@ class TestProductionGuards:
         with pytest.raises(UnsafeConfiguration, match="CORS_ORIGIN"):
             validate_production_settings(fresh_prod(cors_origin="https://neuintern.in, *"))
 
+    def test_disabling_rate_limits_is_refused(self):
+        with pytest.raises(UnsafeConfiguration, match="RATE_LIMIT_ENABLED"):
+            validate_production_settings(fresh_prod(rate_limit_enabled=False))
+
+    def test_rate_limits_default_to_on(self):
+        assert Settings(_env_file=None).rate_limit_enabled is True
+
     def test_disabling_secure_cookies_is_refused(self):
         with pytest.raises(UnsafeConfiguration, match="COOKIE_SECURE"):
             validate_production_settings(fresh_prod(cookie_secure=False))

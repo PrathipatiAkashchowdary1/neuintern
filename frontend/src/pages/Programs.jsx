@@ -134,7 +134,7 @@ export default function Programs() {
               className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6"
             >
               {visible.map((program, i) => (
-                <ProgramCard key={program.id} program={program} index={i} />
+                <ProgramCard key={program.slug} program={program} index={i} />
               ))}
             </motion.div>
           )}

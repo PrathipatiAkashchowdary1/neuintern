@@ -40,3 +40,7 @@ backend/neuintern.db
 # Env files
 frontend/.env
 backend/.env
+
+# Playwright
+test-results/
+playwright-report/

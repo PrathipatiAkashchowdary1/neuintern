@@ -32,6 +32,8 @@ def validate_production_settings(s: Settings | None = None) -> None:
         problems.append("COOKIE_SECURE must not be disabled in production (the session cookie would travel over plain HTTP).")
     if s.cookie_samesite.lower() == "none" and not s.session_cookie_secure:
         problems.append("COOKIE_SAMESITE=none requires secure cookies.")
+    if not s.rate_limit_enabled:
+        problems.append("RATE_LIMIT_ENABLED must not be false in production (login and sign-up abuse protection).")
     if problems:
         raise UnsafeConfiguration("Unsafe production configuration:\n  - " + "\n  - ".join(problems))
 

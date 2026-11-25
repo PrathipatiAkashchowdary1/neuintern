@@ -318,10 +318,10 @@ function DetailsStep({ email, onSubmitted, onError, clearError, registerUser }) 
           type="password"
           {...register('password', {
             required: 'Password is required',
-            minLength: { value: 6, message: 'Password must be at least 6 characters' },
+            minLength: { value: 8, message: 'Password must be at least 8 characters' },
           })}
           className="w-full mt-1.5 rounded-xl border border-ink-900/10 px-4 py-3 text-sm focus:outline-none focus:border-brand-400 focus:ring-4 focus:ring-brand-100"
-          placeholder="At least 6 characters"
+          placeholder="At least 8 characters"
         />
         {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>}
       </div>

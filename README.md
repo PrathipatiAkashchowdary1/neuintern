@@ -144,3 +144,14 @@ you want it dialed in closer.
   the existing enrollment rather than creating a duplicate.
 - See each folder's own README for stack details and deployment notes (GoDaddy shared
   hosting will not run either backend directly — see those READMEs for options).
+
+## Tests
+
+- **Backend:** `cd backend && pip install -r requirements-dev.txt && pytest` (details in `backend/README.md`).
+- **Browser smoke tests:** `cd frontend && npm install && npm run e2e`. They start their own API and
+  site on ports 8010/5180 with a throwaway database (no email, no payments, your dev servers and data
+  are untouched) and drive a real browser through sign-up, login, lockout, password reset, the student
+  journey, devices, and the admin portal (programs, image upload, fees, invoice details, email queue).
+  On Windows they use the Microsoft Edge you already have; elsewhere run `npx playwright install chromium`
+  once. Set `PW_CHANNEL=chrome` to use Chrome instead, or `npx playwright test --ui` to watch them run.
+  CI runs both suites on every push.
