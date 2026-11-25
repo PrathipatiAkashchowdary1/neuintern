@@ -155,3 +155,9 @@ you want it dialed in closer.
   On Windows they use the Microsoft Edge you already have; elsewhere run `npx playwright install chromium`
   once. Set `PW_CHANNEL=chrome` to use Chrome instead, or `npx playwright test --ui` to watch them run.
   CI runs both suites on every push.
+
+## Going live
+
+See [docs/GO-LIVE.md](docs/GO-LIVE.md) for the full checklist (credentials, environment variables, database,
+Razorpay webhook, email, hosting, backups). Run `cd backend && python -m app.deploy_check` on the server: it
+reads the settings the server will use and lists everything unsafe or missing (exit code 1 on any failure).
