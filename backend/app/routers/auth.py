@@ -5,12 +5,13 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.limiter import limiter
-from app.core.security import create_access_token, hash_password, verify_password
+from app.core.security import create_access_token, decode_access_token, hash_password, verify_password
 from app.db.base import get_db
 from app.db.models import User
 from app.deps import get_current_user
 from app.schemas.auth import LoginRequest, RegisterRequest
 from app.schemas.otp import ForgotPasswordRequest, ResetPasswordRequest, SendOtpRequest, VerifyOtpRequest
+from app.services import session_service
 from app.services.otp_service import generate_and_send_otp, has_recent_verified_otp, verify_otp
 from app.services.throttle import ensure_not_locked, make_key, record_failure, record_success
 
@@ -48,8 +49,24 @@ def _set_session_cookie(response: Response, token: str) -> None:
     )
 
 
-def _token_response(user: User, response: Response) -> dict:
-    token = create_access_token({"id": user.id, "email": user.email, "role": user.role})
+def _clear_session_cookie(response: Response) -> None:
+    response.delete_cookie(
+        key=settings.session_cookie_name,
+        path="/",
+        domain=settings.cookie_domain or None,
+        secure=settings.session_cookie_secure,
+        httponly=True,
+        samesite=settings.cookie_samesite.lower(),
+    )
+
+
+def _token_response(user: User, response: Response, request: Request, db: Session) -> dict:
+    # Every login is a server-side session (see app/services/session_service.py) so it can be
+    # cancelled individually; the token carries its id as `jti`.
+    session = session_service.create(
+        db, user, user_agent=request.headers.get("user-agent"), ip=request.client.host if request.client else None
+    )
+    token = create_access_token({"id": user.id, "email": user.email, "role": user.role, "jti": session.id})
     _set_session_cookie(response, token)
     # The token is still returned for non-browser API clients; the website ignores it.
     return {"success": True, "data": {"token": token, "user": _user_out(user)}}
@@ -130,6 +147,7 @@ async def reset_password(request: Request, payload: ResetPasswordRequest, db: Se
     # Log out everywhere: any token issued before this moment stops working.
     user.token_valid_after = datetime.now(timezone.utc).replace(tzinfo=None)
     db.commit()
+    session_service.revoke_all(db, user.id)  # every device is logged out
     record_success(db, make_key("login", payload.email))  # a reset also clears a login lockout
 
     return {"success": True, "message": "Password updated. You can now log in."}
@@ -166,7 +184,7 @@ async def register(request: Request, response: Response, payload: RegisterReques
     db.commit()
     db.refresh(user)
 
-    return _token_response(user, response)
+    return _token_response(user, response, request, db)
 
 
 @router.post("/login")
@@ -187,21 +205,65 @@ async def login(request: Request, response: Response, payload: LoginRequest, db:
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     record_success(db, key)
-    return _token_response(user, response)
+    return _token_response(user, response, request, db)
 
 
 @router.post("/logout")
-async def logout(response: Response):
-    """Clears the session cookie. Safe to call when not logged in."""
-    response.delete_cookie(
-        key=settings.session_cookie_name,
-        path="/",
-        domain=settings.cookie_domain or None,
-        secure=settings.session_cookie_secure,
-        httponly=True,
-        samesite=settings.cookie_samesite.lower(),
-    )
+async def logout(request: Request, response: Response, db: Session = Depends(get_db)):
+    """Ends THIS login: the session is revoked on the server (so a copy of the token stops
+    working too) and the cookie is cleared. Safe to call when not logged in."""
+    authorization = request.headers.get("authorization", "")
+    token = authorization[7:] if authorization.lower().startswith("bearer ") else request.cookies.get(settings.session_cookie_name)
+    payload = decode_access_token(token) if token else None
+    if payload and payload.get("jti") and payload.get("id"):
+        session_service.revoke(db, payload["jti"], payload["id"])
+    _clear_session_cookie(response)
     return {"success": True, "message": "Logged out."}
+
+
+@router.post("/logout-all")
+async def logout_all(response: Response, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Logs this account out on EVERY device, including this one."""
+    revoked = session_service.revoke_all(db, current_user.id)
+    # Also cuts off tokens issued before sessions existed (they have no session row to revoke).
+    current_user.token_valid_after = datetime.now(timezone.utc).replace(tzinfo=None)
+    db.commit()
+    _clear_session_cookie(response)
+    return {"success": True, "message": "Logged out of all devices.", "data": {"revoked": revoked}}
+
+
+@router.get("/sessions")
+async def list_sessions(request: Request, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """The devices currently logged in to this account."""
+    current_id = getattr(request.state, "session_id", None)
+    items = [
+        {
+            "id": s.id,
+            "device": session_service.describe_device(s.user_agent),
+            "ip": s.ip,
+            "createdAt": s.created_at.isoformat(),
+            "lastSeenAt": s.last_seen_at.isoformat(),
+            "current": s.id == current_id,
+        }
+        for s in session_service.list_active(db, current_user.id)
+    ]
+    return {"success": True, "data": items}
+
+
+@router.delete("/sessions/{session_id}")
+async def revoke_session(
+    session_id: str,
+    request: Request,
+    response: Response,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Logs out one device. Only your own sessions can be revoked."""
+    if not session_service.revoke(db, session_id, current_user.id):
+        raise HTTPException(status_code=404, detail="Session not found")
+    if session_id == getattr(request.state, "session_id", None):
+        _clear_session_cookie(response)  # you logged yourself out
+    return {"success": True, "message": "Device logged out."}
 
 
 @router.get("/me")

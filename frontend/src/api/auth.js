@@ -50,6 +50,23 @@ export async function logout() {
   }
 }
 
+// The devices this account is logged in on: [{ id, device, ip, createdAt, lastSeenAt, current }]
+export async function fetchSessions() {
+  const { data } = await apiClient.get('/auth/sessions')
+  return data.data
+}
+
+export async function revokeSession(id) {
+  const { data } = await apiClient.delete(`/auth/sessions/${encodeURIComponent(id)}`)
+  return data
+}
+
+// Logs out every device, including this one.
+export async function logoutAll() {
+  const { data } = await apiClient.post('/auth/logout-all')
+  return data
+}
+
 // Reserved for Phase 2 — backend routes exist and return 501 until implemented.
 export async function loginWithGoogle() {
   return Promise.reject({ message: 'Google login is not available yet.', status: 501 })

@@ -43,6 +43,15 @@ change data must send an `X-Requested-With` header (the frontend does this) as a
 guard. `POST /api/auth/logout` clears the cookie. Resetting a password logs out every
 existing session.
 
+**Device sessions.** Every login is also a row in `user_sessions` and the token carries its id,
+so one login can be cancelled: `POST /api/auth/logout` revokes the current session on the
+server (a copied token stops working too), `GET /api/auth/sessions` lists a user's active
+devices, `DELETE /api/auth/sessions/{id}` logs one out, and `POST /api/auth/logout-all` logs
+out every device. Students see this as **Your devices** on their dashboard. At most 20
+devices are kept per account. Tokens issued before this feature have no session row and
+simply run until they expire (7 days at most); `logout-all` and a password reset still
+cut them off. After upgrading, run `alembic upgrade head` (adds `user_sessions`).
+
 **Brute-force protection.** 5 failed logins (or wrong reset/verification codes) for the
 same email within 15 minutes lock that email for 15 minutes (HTTP 429 + `Retry-After`).
 Counters live in the database, so they hold across workers. Unknown emails lock the same
@@ -75,10 +84,6 @@ the same certificate twice, and workers starting together no longer collide whil
 To run the jobs in just one process instead, start the others with `SCHEDULER_ENABLED=false`.
 After upgrading, run `alembic upgrade head` (adds `job_locks`).
 
-## Reminder emails
-
-A daily job (10:30 UTC) emails students who enrolled but haven't paid the
-certificate fee: one email if they never submitted the task, another if they
 ## Reliable email (outbox)
 
 Receipts, certificates, offer letters and contact-form emails are not just fired off in
@@ -93,14 +98,18 @@ accepted a message, one duplicate can go out on the retry. Login codes (OTP) del
 do not use the outbox: they expire in minutes and should not be stored in plain text.
 After upgrading, run `alembic upgrade head` (adds `email_outbox`).
 
+## Reminder emails
 
-It is **off by default** (`REMINDERS_ENABLED=false`) so a deploy never emails
-existing students by surprise. To roll it out:
-
+A daily job (10:30 UTC) emails students who enrolled but haven't paid the
+certificate fee: one email if they never submitted the task, another if they
 submitted it but haven't paid. Pacing lives in `app/services/reminder_service.py`:
 first reminder 2 days after enrolling (task) / 1 day after submitting (payment),
 then every 3+ days, at most 3 per enrollment, and never for enrollments older
 than 60 days. Paid students are never emailed.
+
+It is **off by default** (`REMINDERS_ENABLED=false`) so a deploy never emails
+existing students by surprise. To roll it out:
+
 1. `alembic upgrade head` (adds `reminder_count` / `last_reminder_at`).
 2. Admin dry run: `POST /api/admin/reminders/send?dryRun=true` reports how many
    students would be emailed, without sending or recording anything.

@@ -309,3 +309,19 @@ class EmailOutbox(Base):
     last_error: Mapped[str] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
     sent_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+
+
+class UserSession(Base):
+    """One login. The JWT carries this row's id (jti); revoking the row kills the token.
+    See app/services/session_service.py."""
+
+    __tablename__ = "user_sessions"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(32), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    user_agent: Mapped[str] = mapped_column(String(255), default="")
+    ip: Mapped[str] = mapped_column(String(45), default="")
+    revoked_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)

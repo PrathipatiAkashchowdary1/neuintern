@@ -10,6 +10,7 @@ import TaskSubmissionForm from '../components/dashboard/TaskSubmissionForm'
 import CertificatePayment from '../components/dashboard/CertificatePayment'
 import CertificateWaiting from '../components/dashboard/CertificateWaiting'
 import CertificateView from '../components/dashboard/CertificateView'
+import SessionsPanel from '../components/dashboard/SessionsPanel'
 import { useAuth } from '../context/AuthContext'
 import { fetchMyEnrollments, fetchOfferLetter, fetchCertificate } from '../api/enrollments'
 import { fetchPrograms } from '../api/programs'
@@ -101,6 +102,8 @@ export default function Dashboard() {
                   <p className="flex items-center gap-2"><FiPhone className="text-brand-600" size={15} /> {user?.phone}</p>
                   <p className="flex items-center gap-2"><FiBookOpen className="text-brand-600" size={15} /> {user?.degree} · {user?.branch} · {user?.currentYear}</p>
                 </div>
+
+                <SessionsPanel />
 
                 {enrollments.length > 1 && (
                   <div className="pt-4 border-t border-ink-900/5">

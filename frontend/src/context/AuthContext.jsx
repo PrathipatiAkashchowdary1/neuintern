@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
-import { getCurrentUser, loginUser, registerUser, logout as logoutApi } from '../api/auth'
+import { getCurrentUser, loginUser, registerUser, logout as logoutApi, logoutAll as logoutAllApi } from '../api/auth'
 
 const AuthContext = createContext(null)
 
@@ -30,9 +30,14 @@ export function AuthProvider({ children }) {
     await logoutApi() // then clear the cookie on the server
   }, [])
 
+  const logoutEverywhere = useCallback(async () => {
+    await logoutAllApi() // revokes every session on the server; rejects if it fails
+    setUser(null)
+  }, [])
+
   return (
     <AuthContext.Provider
-      value={{ user, loading, isAuthenticated: Boolean(user), isAdmin: user?.role === 'admin', login, register, logout }}
+      value={{ user, loading, isAuthenticated: Boolean(user), isAdmin: user?.role === 'admin', login, register, logout, logoutEverywhere }}
     >
       {children}
     </AuthContext.Provider>

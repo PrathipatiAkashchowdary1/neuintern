@@ -7,7 +7,8 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.security import decode_access_token
 from app.db.base import get_db
-from app.db.models import User
+from app.db.models import User, UserSession
+from app.services import session_service
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -44,6 +45,17 @@ def get_current_user(
     user = db.query(User).filter(User.id == payload.get("id")).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    # Logins are server-side sessions: logging out, "log out of all devices" or a password
+    # reset revokes the session, and the token stops working immediately. (Tokens issued
+    # before sessions existed have no jti and simply run until they expire.)
+    jti = payload.get("jti")
+    if jti:
+        session = db.get(UserSession, jti)
+        if not session_service.is_active(session, user.id):
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session expired. Please log in again.")
+        session_service.touch(db, session)
+        request.state.session_id = jti
 
     # A password reset revokes every token issued before it.
     if user.token_valid_after is not None:
