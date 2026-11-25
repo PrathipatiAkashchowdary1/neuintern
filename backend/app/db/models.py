@@ -221,3 +221,12 @@ class Enrollment(Base):
     certificate_issued_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=True
     )
+
+    # Reminder emails for students who stall before paying (see
+    # app/services/reminder_service.py).
+    reminder_count: Mapped[int] = mapped_column(
+        Integer, default=0, server_default="0"
+    )
+    last_reminder_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=True
+    )

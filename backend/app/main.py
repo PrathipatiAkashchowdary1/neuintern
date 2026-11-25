@@ -1,3 +1,5 @@
+from datetime import timezone
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -12,6 +14,7 @@ from app.db.base import SessionLocal
 from app.db.seed import seed_admin_user, seed_certificates, seed_programs
 from app.routers import admin, auth, certificate, contact, enrollments, payments, programs, testimonials
 from app.services.certificate_service import process_due_certificates
+from app.services.reminder_service import send_due_reminders
 
 app = FastAPI(title=settings.app_name)
 
@@ -52,6 +55,20 @@ def _run_certificate_check() -> None:
         db.close()
 
 
+def _run_reminder_check() -> None:
+    """Scheduler job: emails students who have stalled before paying. A no-op
+    unless REMINDERS_ENABLED is set."""
+    if not settings.reminders_enabled:
+        return
+    db = SessionLocal()
+    try:
+        sent = send_due_reminders(db)
+        if sent:
+            print(f"[reminder-scheduler] Sent {len(sent)} reminder email(s).")
+    finally:
+        db.close()
+
+
 scheduler = BackgroundScheduler()
 
 
@@ -72,6 +89,13 @@ def on_startup():
     scheduler.add_job(_run_certificate_check, "interval", hours=1, id="certificate_check", replace_existing=True)
     scheduler.start()
     _run_certificate_check()
+
+    # Once a day at 10:30 UTC (16:00 IST), a sensible hour to receive mail.
+    # Deliberately NOT run at startup: restarts must not trigger sends.
+    scheduler.add_job(
+        _run_reminder_check, "cron", hour=10, minute=30, timezone=timezone.utc,
+        id="reminder_check", replace_existing=True,
+    )
 
 
 @app.on_event("shutdown")

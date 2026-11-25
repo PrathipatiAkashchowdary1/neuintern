@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.db.base import get_db
@@ -9,6 +9,7 @@ from app.deps import require_admin
 from app.schemas.admin_programs import ProgramCreate, ProgramUpdate
 from app.services.enrollments_service import admin_enrollment_to_dict
 from app.services.certificate_service import process_due_certificates
+from app.services.reminder_service import send_due_reminders
 from app.services.programs_service import apply_program_fields, program_to_dict
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -263,3 +264,24 @@ async def admin_process_due_certificates(_admin: User = Depends(require_admin), 
     production when you know a batch just crossed their completion date."""
     processed = process_due_certificates(db)
     return {"success": True, "message": f"Processed {processed} certificate(s).", "data": {"processed": processed}}
+
+
+# ---------- Reminder emails ----------
+
+@router.post("/reminders/send")
+async def admin_send_reminders(
+    dry_run: bool = Query(False, alias="dryRun"),
+    _admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Runs the daily reminder job on demand. Use ?dryRun=true to see how many
+    students WOULD be emailed without sending or recording anything; do that
+    before turning REMINDERS_ENABLED on. Works regardless of that flag, since
+    an admin triggering it is an explicit action."""
+    ids = send_due_reminders(db, dry_run=dry_run)
+    verb = "Would send" if dry_run else "Sent"
+    return {
+        "success": True,
+        "message": f"{verb} {len(ids)} reminder(s).",
+        "data": {"count": len(ids), "dryRun": dry_run},
+    }

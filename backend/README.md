@@ -34,6 +34,25 @@ Tests run against a throwaway SQLite database and never send real email or call
 Razorpay, whatever your `.env` says (see `tests/conftest.py`). They cover the
 payment flow (order, verify, webhook, idempotency) and certificate unlocking.
 
+## Reminder emails
+
+A daily job (10:30 UTC) emails students who enrolled but haven't paid the
+certificate fee: one email if they never submitted the task, another if they
+submitted it but haven't paid. Pacing lives in `app/services/reminder_service.py`:
+first reminder 2 days after enrolling (task) / 1 day after submitting (payment),
+then every 3+ days, at most 3 per enrollment, and never for enrollments older
+than 60 days. Paid students are never emailed.
+
+It is **off by default** (`REMINDERS_ENABLED=false`) so a deploy never emails
+existing students by surprise. To roll it out:
+
+1. `alembic upgrade head` (adds `reminder_count` / `last_reminder_at`).
+2. Admin dry run: `POST /api/admin/reminders/send?dryRun=true` reports how many
+   students would be emailed, without sending or recording anything.
+3. Set `REMINDERS_ENABLED=true` (and `FRONTEND_URL` for the dashboard link).
+
+`POST /api/admin/reminders/send` (no `dryRun`) runs the job on demand.
+
 ## Database migrations (Alembic)
 
 The schema is managed by Alembic (`alembic/versions/`); the app no longer calls

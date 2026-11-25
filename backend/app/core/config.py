@@ -28,6 +28,12 @@ class Settings(BaseSettings):
     smtp_from: str = "NeuIntern <contact@neuintern.in>"
     contact_notify_email: str = "contact@neuintern.in"  # where contact form submissions are sent
 
+    # Reminder emails to students who enrolled but have not paid. Off by
+    # default so deploying never emails existing students unexpectedly; use the
+    # admin dry run first, then set REMINDERS_ENABLED=true.
+    reminders_enabled: bool = False
+    frontend_url: str = "https://www.neuintern.in"  # base for links in emails
+
     otp_expiry_minutes: int = 10
     otp_verification_valid_minutes: int = 30
 
