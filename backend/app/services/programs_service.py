@@ -1,6 +1,7 @@
 import json
 
 from app.db.models import Program
+from app.services.fee_service import effective_fee
 
 
 def program_to_dict(p: Program) -> dict:
@@ -11,7 +12,7 @@ def program_to_dict(p: Program) -> dict:
         "tagline": p.tagline,
         "image": p.image,
         "duration": p.duration,
-        "price": p.price,
+        "price": effective_fee(p),  # the certificate fee actually charged
         "currency": p.currency,
         "mode": p.mode,
         "certificate": p.certificate,

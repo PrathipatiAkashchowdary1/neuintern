@@ -42,7 +42,7 @@ export default function ProgramsManager({ programs, onChanged }) {
             <tr className="text-left text-xs text-ink-400 uppercase tracking-wide border-b border-ink-900/5">
               <th className="px-5 py-3 font-medium">Program</th>
               <th className="px-5 py-3 font-medium">Category</th>
-              <th className="px-5 py-3 font-medium">Price</th>
+              <th className="px-5 py-3 font-medium">Certificate fee</th>
               <th className="px-5 py-3 font-medium">Status</th>
               <th className="px-5 py-3 font-medium text-right">Actions</th>
             </tr>
@@ -50,7 +50,16 @@ export default function ProgramsManager({ programs, onChanged }) {
           <tbody className="divide-y divide-ink-900/5">
             {programs.map((p) => (
               <tr key={p.slug} className="hover:bg-cloud-200/60 transition-colors">
-                <td className="px-5 py-4 font-medium text-ink-900">{p.title}</td>
+                <td className="px-5 py-4 font-medium text-ink-900">
+                  <div className="flex items-center gap-3">
+                    {p.image ? (
+                      <img src={p.image} alt="" loading="lazy" className="w-12 h-8 rounded-lg object-cover bg-cloud-200 shrink-0" />
+                    ) : (
+                      <div className="w-12 h-8 rounded-lg bg-cloud-200 shrink-0" aria-hidden="true" />
+                    )}
+                    <span>{p.title}</span>
+                  </div>
+                </td>
                 <td className="px-5 py-4 text-ink-600">{p.category}</td>
                 <td className="px-5 py-4 text-ink-600">₹{p.price?.toLocaleString('en-IN')}</td>
                 <td className="px-5 py-4">
@@ -91,7 +100,7 @@ export default function ProgramsManager({ programs, onChanged }) {
       </div>
 
       {editing && (
-        <ProgramEditorModal
+        <ProgramEditorModal categories={[...new Set(programs.map((p) => p.category))]}
           program={editing === 'new' ? null : editing}
           onClose={() => setEditing(null)}
           onSave={handleSave}

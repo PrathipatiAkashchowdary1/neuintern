@@ -37,6 +37,12 @@ class Settings(BaseSettings):
     # one-click List-Unsubscribe email header; omitted when empty.
     api_public_url: str = ""
 
+    # Program images uploaded from the admin portal. Relative paths are
+    # relative to backend/. On hosts with ephemeral disks, point this at a
+    # persistent volume or the images disappear on redeploy.
+    upload_dir: str = "uploads"
+    max_upload_mb: int = 3
+
     otp_expiry_minutes: int = 10
     otp_verification_valid_minutes: int = 30
 

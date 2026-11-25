@@ -30,6 +30,17 @@ export async function deleteAdminProgram(slug) {
   return data
 }
 
+// Uploads a program banner; resolves to the public URL to store in `image`.
+export async function uploadProgramImage(file) {
+  const form = new FormData()
+  form.append('file', file)
+  const { data } = await apiClient.post('/admin/uploads/image', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 60000,
+  })
+  return data.data.url
+}
+
 export async function fetchAllMessages() {
   const { data } = await apiClient.get('/admin/messages')
   return data.data

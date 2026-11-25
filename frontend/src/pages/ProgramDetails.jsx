@@ -14,6 +14,7 @@ import NotFound from './NotFound'
 import { fetchProgramBySlug } from '../api/programs'
 import { enrollInProgram } from '../api/enrollments'
 import { useAuth } from '../context/AuthContext'
+import { formatRupees } from '../utils/money'
 
 const programFaqTemplate = (program) => [
   { q: `Who can apply for the ${program.title} internship?`, a: program.eligibility },
@@ -108,12 +109,16 @@ export default function ProgramDetails() {
               transition={{ duration: 0.5 }}
               className="glass rounded-3xl p-7"
             >
-              <img
-                src={program.image}
-                alt={`${program.title} internship banner`}
-                className="rounded-2xl w-full h-40 object-cover mb-6"
-                loading="lazy"
-              />
+              {program.image ? (
+                <img
+                  src={program.image}
+                  alt={`${program.title} internship banner`}
+                  className="rounded-2xl w-full h-40 object-cover mb-6"
+                  loading="lazy"
+                />
+              ) : (
+                <div className="rounded-2xl w-full h-40 mb-6 bg-brand-gradient" aria-hidden="true" />
+              )}
               <ul className="space-y-3 text-sm">
                 <li className="flex items-center gap-2 text-ink-800">
                   <FiClock className="text-brand-600" /> {program.duration}
@@ -129,7 +134,7 @@ export default function ProgramDetails() {
                 </li>
               </ul>
               <div className="mt-6 pt-6 border-t border-ink-900/5 text-sm text-ink-400">
-                Free to enroll · <span className="text-ink-900 font-medium">₹150</span> certificate fee after task completion
+                Free to enroll · <span className="text-ink-900 font-medium">{formatRupees(program.price)}</span> certificate fee after task completion
               </div>
               <button onClick={handleEnroll} disabled={enrolling} className="btn-primary w-full mt-4">
                 {enrolling ? 'Enrolling…' : <>Enroll Now <FiArrowRight /></>}
@@ -146,8 +151,8 @@ export default function ProgramDetails() {
               <h2 className="text-2xl font-bold mb-4">Overview</h2>
               <p className="text-ink-400 leading-relaxed">
                 This 4-week {program.title.toLowerCase()} internship takes you from fundamentals to a working
-                project through weekly milestones, live mentor sessions, and hands-on practice with{' '}
-                {program.tools.join(', ')}.
+                project through weekly milestones, live mentor sessions, and hands-on practice
+                {program.tools.length > 0 && <> with {program.tools.join(', ')}</>}.
               </p>
             </div>
 
@@ -170,16 +175,18 @@ export default function ProgramDetails() {
           </div>
 
           <aside className="space-y-8">
-            <div className="rounded-3xl bg-white border border-ink-900/5 p-6 shadow-card">
-              <h3 className="font-semibold">Tools Used</h3>
-              <div className="flex flex-wrap gap-2 mt-3">
-                {program.tools.map((t) => (
-                  <span key={t} className="text-xs bg-cloud-200 text-ink-800 px-3 py-1.5 rounded-full">
-                    {t}
-                  </span>
-                ))}
+            {program.tools.length > 0 && (
+              <div className="rounded-3xl bg-white border border-ink-900/5 p-6 shadow-card">
+                <h3 className="font-semibold">Tools Used</h3>
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {program.tools.map((t) => (
+                    <span key={t} className="text-xs bg-cloud-200 text-ink-800 px-3 py-1.5 rounded-full">
+                      {t}
+                    </span>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
             <div className="rounded-3xl bg-white border border-ink-900/5 p-6 shadow-card">
               <h3 className="font-semibold">Eligibility</h3>
               <p className="text-sm text-ink-400 mt-2 leading-relaxed">{program.eligibility}</p>

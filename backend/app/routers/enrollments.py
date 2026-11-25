@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.limiter import limiter
 from app.db.base import get_db
-from app.db.models import CERTIFICATE_FEE_INR, Enrollment, Program, User
+from app.db.models import Enrollment, Program, User
 from app.deps import get_current_user
 from app.schemas.enrollments import EnrollRequest, TaskSubmitRequest
 from app.schemas.payments import VerifyPaymentRequest
@@ -18,12 +18,17 @@ from app.services.certificate_service import (
     certificate_pdf_payload,
 )
 from app.services.enrollments_service import enrollment_to_dict
+from app.services.fee_service import CERTIFICATE_CURRENCY, effective_fee, fee_to_pay, sync_unpaid_fee
 from app.services.email_service import run_email_task, send_email_with_attachments
 from app.services.payment_service import invoice_data as _invoice_data, mark_enrollment_paid
 from app.services.pdf_service import generate_certificate_pdf, generate_invoice_pdf, generate_offer_letter_pdf
 from app.services.razorpay_client import get_client
 
 router = APIRouter(prefix="/api/enrollments", tags=["enrollments"])
+
+
+def _out(db: Session, enrollment: Enrollment) -> dict:
+    return enrollment_to_dict(enrollment, fee_to_pay(db, enrollment))
 
 
 def _get_owned_enrollment(enrollment_id: str, user: User, db: Session) -> Enrollment:
@@ -52,7 +57,8 @@ async def enroll(
         .first()
     )
     if existing:
-        return {"success": True, "data": enrollment_to_dict(existing)}
+        sync_unpaid_fee(db, existing)
+        return {"success": True, "data": _out(db, existing)}
 
     enrollment = Enrollment(
         user_id=current_user.id,
@@ -61,8 +67,8 @@ async def enroll(
         name=current_user.full_name,
         email=current_user.email,
         phone=current_user.phone,
-        amount=CERTIFICATE_FEE_INR,
-        currency="INR",
+        amount=effective_fee(program),  # admin-editable program price
+        currency=CERTIFICATE_CURRENCY,
         payment_status="unpaid",
     )
     db.add(enrollment)
@@ -79,7 +85,7 @@ async def enroll(
         _offer_letter_pdf_payload(enrollment),
     )
 
-    return {"success": True, "data": enrollment_to_dict(enrollment)}
+    return {"success": True, "data": _out(db, enrollment)}
 
 
 @router.get("/me")
@@ -90,7 +96,9 @@ async def my_enrollments(current_user: User = Depends(get_current_user), db: Ses
         .order_by(Enrollment.enrolled_at.desc())
         .all()
     )
-    return {"success": True, "data": [enrollment_to_dict(e) for e in rows]}
+    for e in rows:
+        sync_unpaid_fee(db, e)
+    return {"success": True, "data": [_out(db, e) for e in rows]}
 
 
 @router.get("/{enrollment_id}")
@@ -98,7 +106,8 @@ async def get_enrollment(
     enrollment_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ):
     enrollment = _get_owned_enrollment(enrollment_id, current_user, db)
-    return {"success": True, "data": enrollment_to_dict(enrollment)}
+    sync_unpaid_fee(db, enrollment)
+    return {"success": True, "data": _out(db, enrollment)}
 
 
 def _offer_letter_data(enrollment: Enrollment) -> dict:
@@ -184,7 +193,7 @@ async def submit_task(
     db.commit()
     db.refresh(enrollment)
 
-    return {"success": True, "message": "Task submitted successfully.", "data": enrollment_to_dict(enrollment)}
+    return {"success": True, "message": "Task submitted successfully.", "data": _out(db, enrollment)}
 
 
 @router.post("/{enrollment_id}/payment/create-order", status_code=201)
@@ -208,13 +217,16 @@ async def create_certificate_order(
         )
 
     client = get_client()
-    amount_in_paise = round(CERTIFICATE_FEE_INR * 100)
+    # Charge what the admin has set right now, and pin it on the enrollment so
+    # the invoice and the webhook amount check match this exact order.
+    fee = effective_fee(db.get(Program, enrollment.program_slug))
+    amount_in_paise = round(fee * 100)
 
     try:
         order = client.order.create(
             {
                 "amount": amount_in_paise,
-                "currency": "INR",
+                "currency": CERTIFICATE_CURRENCY,
                 "receipt": f"ni_cert_{enrollment.id[:12]}",
                 "notes": {
                     "enrollmentId": enrollment.id,
@@ -226,6 +238,8 @@ async def create_certificate_order(
     except Exception as err:  # razorpay SDK raises its own exception types
         raise HTTPException(status_code=502, detail=f"Could not create payment order: {err}") from err
 
+    enrollment.amount = amount_in_paise / 100
+    enrollment.currency = CERTIFICATE_CURRENCY
     enrollment.razorpay_order_id = order["id"]
     enrollment.payment_status = "pending"
     db.commit()
@@ -255,7 +269,7 @@ async def verify_certificate_payment(
     # Idempotent: a retry, double-click, or webhook that got here first just
     # reports the current state: no second invoice, no downgrade.
     if enrollment.payment_status == "paid":
-        return {"success": True, "message": _paid_message(enrollment), "data": enrollment_to_dict(enrollment)}
+        return {"success": True, "message": _paid_message(enrollment), "data": _out(db, enrollment)}
 
     # The signature must be for THIS enrollment's order, not just any order.
     if not enrollment.razorpay_order_id or payload.razorpay_order_id != enrollment.razorpay_order_id:
@@ -280,7 +294,7 @@ async def verify_certificate_payment(
         db, enrollment, payload.razorpay_payment_id, payload.razorpay_signature, background_tasks
     )
 
-    return {"success": True, "message": _paid_message(enrollment), "data": enrollment_to_dict(enrollment)}
+    return {"success": True, "message": _paid_message(enrollment), "data": _out(db, enrollment)}
 
 
 def _paid_message(enrollment: Enrollment) -> str:

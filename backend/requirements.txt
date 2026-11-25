@@ -49,3 +49,4 @@ pymysql==1.2.0
 alembic==1.13.2
 Mako==1.4.1
 MarkupSafe==3.0.3
+python-multipart==0.0.9

@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from sqlalchemy.orm import Session
 
 from app.db.base import get_db
@@ -9,7 +9,9 @@ from app.deps import require_admin
 from app.schemas.admin_programs import ProgramCreate, ProgramUpdate
 from app.services.enrollments_service import admin_enrollment_to_dict
 from app.services.certificate_service import process_due_certificates
+from app.core.config import settings
 from app.services.reminder_service import send_due_reminders
+from app.services.upload_service import save_program_image
 from app.services.programs_service import apply_program_fields, program_to_dict
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -205,6 +207,22 @@ async def admin_delete_program(slug: str, _admin: User = Depends(require_admin),
     db.commit()
 
     return {"success": True, "message": "Program deactivated."}
+
+
+@router.post("/uploads/image", status_code=201)
+async def admin_upload_image(
+    request: Request,
+    file: UploadFile = File(...),
+    _admin: User = Depends(require_admin),
+):
+    """Uploads a program image and returns its public URL, to be stored in a
+    program's `image` field. Only real PNG/JPEG/WebP images are accepted."""
+    # Read at most one byte over the limit so a huge upload is never held in memory.
+    data = await file.read(settings.max_upload_mb * 1024 * 1024 + 1)
+    filename = save_program_image(data)
+    # Absolute URL on the API host: the frontend is served from a different origin.
+    base = (settings.api_public_url or str(request.base_url)).rstrip("/")
+    return {"success": True, "data": {"url": f"{base}/uploads/{filename}"}}
 
 
 # ---------- Contact Messages ----------

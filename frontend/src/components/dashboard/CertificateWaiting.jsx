@@ -1,4 +1,5 @@
 import { FiClock, FiCheckCircle } from 'react-icons/fi'
+import { formatRupees } from '../../utils/money'
 
 export default function CertificateWaiting({ enrollment }) {
   const completionDate = enrollment.completionDate
@@ -12,7 +13,7 @@ export default function CertificateWaiting({ enrollment }) {
         <h3 className="font-semibold text-lg">Payment received</h3>
       </div>
       <p className="text-sm text-ink-400 mt-2">
-        Thanks — your ₹150 certificate fee is confirmed and your receipt is on its way to your inbox.
+        Thanks — your {formatRupees(enrollment.amount)} certificate fee is confirmed and your receipt is on its way to your inbox.
       </p>
 
       <div className="flex items-start gap-3 bg-cloud-200 rounded-2xl p-4 mt-5">

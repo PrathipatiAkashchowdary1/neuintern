@@ -8,8 +8,8 @@ import Search from '../components/common/Search'
 import Pagination from '../components/common/Pagination'
 import ProgramCard from '../components/programs/ProgramCard'
 import { ProgramGridSkeleton } from '../components/common/LoadingSkeleton'
-import { fetchPrograms } from '../api/programs'
-import { categories } from '../data/programs'
+import { fetchPrograms, fetchCategories } from '../api/programs'
+import { categories as defaultCategories } from '../data/programs'
 
 const PAGE_SIZE = 9
 
@@ -20,6 +20,7 @@ export default function Programs() {
   const [page, setPage] = useState(1)
 
   const [allPrograms, setAllPrograms] = useState([])
+  const [categories, setCategories] = useState(defaultCategories)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -42,6 +43,11 @@ export default function Programs() {
     }
   }, [category, search])
 
+  // Categories come from the API so a category an admin adds shows up as a filter.
+  useEffect(() => {
+    fetchCategories().then((list) => list?.length > 1 && setCategories(list))
+  }, [])
+
   useEffect(() => setPage(1), [category, search])
 
   const totalPages = Math.max(1, Math.ceil(allPrograms.length / PAGE_SIZE))
@@ -61,7 +67,7 @@ export default function Programs() {
     <>
       <Seo
         title="Internship Programs"
-        description="Browse 16 focused 4-week internship programs across development, data & AI, security, cloud, design and marketing."
+        description="Browse focused 4-week internship programs across development, data & AI, security, cloud, design and marketing."
         path="/programs"
         keywords="internship programs, web development internship, AI internship, data science internship"
         structuredData={breadcrumbSchema([{ name: 'Home', path: '/' }, { name: 'Programs', path: '/programs' }])}
@@ -71,7 +77,9 @@ export default function Programs() {
         <div className="container-page">
           <Breadcrumb items={[{ name: 'Home', path: '/' }, { name: 'Programs', path: '/programs' }]} />
           <div className="max-w-2xl mt-8">
-            <span className="eyebrow">16 Programs · 4 Weeks Each</span>
+            <span className="eyebrow">
+              {loading ? 'Programs' : `${allPrograms.length} ${allPrograms.length === 1 ? 'Program' : 'Programs'}`} · 4 Weeks Each
+            </span>
             <h1 className="text-4xl sm:text-5xl font-bold mt-4">Explore Internship Programs</h1>
             <p className="text-ink-400 mt-4 leading-relaxed">
               Every track below runs for exactly four weeks, ending in a real project and a certificate.

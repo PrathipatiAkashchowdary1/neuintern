@@ -4,6 +4,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from fastapi.staticfiles import StaticFiles
 from apscheduler.schedulers.background import BackgroundScheduler
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -15,6 +16,7 @@ from app.db.seed import seed_admin_user, seed_certificates, seed_programs
 from app.routers import admin, auth, certificate, contact, enrollments, payments, programs, testimonials, unsubscribe
 from app.services.certificate_service import process_due_certificates
 from app.services.reminder_service import send_due_reminders
+from app.services.upload_service import upload_root
 
 app = FastAPI(title=settings.app_name)
 
@@ -119,3 +121,6 @@ app.include_router(payments.router)
 app.include_router(enrollments.router)
 app.include_router(admin.router)
 app.include_router(unsubscribe.router)
+
+# Admin-uploaded program images (already validated + re-encoded on upload).
+app.mount("/uploads", StaticFiles(directory=upload_root()), name="uploads")

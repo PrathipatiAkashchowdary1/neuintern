@@ -25,9 +25,10 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.security import make_unsubscribe_token
-from app.db.models import CERTIFICATE_FEE_INR, Enrollment, User
+from app.db.models import Enrollment, Program, User
 from app.services.certificate_service import completion_date
 from app.services.email_service import send_email
+from app.services.fee_service import effective_fee
 
 logger = logging.getLogger(__name__)
 
@@ -92,8 +93,10 @@ def unsubscribe_headers(enrollment: Enrollment) -> dict[str, str]:
     }
 
 
-def build_reminder(enrollment: Enrollment) -> tuple[str, str]:
-    """(subject, body) for this student's current stall."""
+def build_reminder(enrollment: Enrollment, fee: float | None = None) -> tuple[str, str]:
+    """(subject, body) for this student's current stall. `fee` is the program's
+    current certificate fee; defaults to the amount already on the enrollment."""
+    fee = enrollment.amount if fee is None else fee
     dashboard = f"{settings.frontend_url.rstrip('/')}/dashboard"
     ends = completion_date(enrollment).strftime("%B %d, %Y")
     footer = (
@@ -118,7 +121,7 @@ def build_reminder(enrollment: Enrollment) -> tuple[str, str]:
         body = (
             f"Hi {enrollment.name},\n\n"
             f"Thanks for submitting your task for the {enrollment.program_title} internship. "
-            f"One step left: pay the ₹{CERTIFICATE_FEE_INR:g} certificate fee from your dashboard:\n"
+            f"One step left: pay the ₹{fee:g} certificate fee from your dashboard:\n"
             f"{dashboard}\n\n"
             f"Your certificate is emailed to you once your program completes on {ends} "
             f"(or right away if that date has passed)."
@@ -169,10 +172,14 @@ def send_due_reminders(db: Session, *, now: datetime | None = None, dry_run: boo
     if dry_run:
         return [e.id for e in due]
 
+    slugs = {e.program_slug for e in due}
+    fees = {p.slug: effective_fee(p) for p in db.query(Program).filter(Program.slug.in_(slugs)).all()}
+
     sent: list[str] = []
     for enrollment in due:
         previous_count, previous_last = enrollment.reminder_count, enrollment.last_reminder_at
-        subject, body = build_reminder(enrollment)  # built before the claim: ORM state is fresh here
+        # Built before the claim: ORM state is fresh here.
+        subject, body = build_reminder(enrollment, fees.get(enrollment.program_slug))
         headers = unsubscribe_headers(enrollment)
         to, enrollment_id = enrollment.email, enrollment.id
         if not _claim(db, enrollment, now):

@@ -24,3 +24,6 @@ frontend/.env
 backend/.env
 
 .pytest_cache/
+
+# Admin-uploaded program images
+uploads/

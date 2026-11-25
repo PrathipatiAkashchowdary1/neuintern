@@ -17,6 +17,8 @@ from types import SimpleNamespace
 _TMP_DIR = tempfile.mkdtemp(prefix="neuintern-tests-")
 os.environ["DATABASE_URL"] = "sqlite:///" + os.path.join(_TMP_DIR, "test.db")
 os.environ["JWT_SECRET"] = "test-jwt-secret"
+os.environ["UPLOAD_DIR"] = os.path.join(_TMP_DIR, "uploads")  # admin image uploads go to a throwaway dir
+os.environ["API_PUBLIC_URL"] = ""
 for _name in ("SMTP_HOST", "SMTP_USER", "SMTP_PASSWORD", "RAZORPAY_KEY_ID", "RAZORPAY_KEY_SECRET", "RAZORPAY_WEBHOOK_SECRET"):
     os.environ[_name] = ""
 

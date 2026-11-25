@@ -2,7 +2,7 @@ from app.db.models import Enrollment
 from app.services.certificate_service import completion_date
 
 
-def enrollment_to_dict(e: Enrollment) -> dict:
+def enrollment_to_dict(e: Enrollment, fee_to_pay: float | None = None) -> dict:
     task_submitted = bool(e.task_submitted_at)
     return {
         "id": e.id,
@@ -17,7 +17,8 @@ def enrollment_to_dict(e: Enrollment) -> dict:
         "linkedinLink": e.linkedin_link,
         "taskSubmitted": task_submitted,
         "taskSubmittedAt": e.task_submitted_at.isoformat() if e.task_submitted_at else None,
-        "amount": e.amount,
+        "amount": e.amount,  # frozen on the invoice once paid
+        "feeToPay": e.amount if fee_to_pay is None else fee_to_pay,  # what paying now would cost
         "currency": e.currency,
         "paymentStatus": e.payment_status,
         "paidAt": e.paid_at.isoformat() if e.paid_at else None,

@@ -13,12 +13,16 @@ export default function ProgramCard({ program, index = 0 }) {
       className="group rounded-3xl bg-white border border-ink-900/5 shadow-card hover:shadow-glass-lg hover:-translate-y-1.5 transition-all duration-300 overflow-hidden flex flex-col"
     >
       <div className="relative h-44 overflow-hidden">
-        <img
-          src={program.image}
-          alt={`${program.title} internship`}
-          loading="lazy"
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-        />
+        {program.image ? (
+          <img
+            src={program.image}
+            alt={`${program.title} internship`}
+            loading="lazy"
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          />
+        ) : (
+          <div className="w-full h-full bg-brand-gradient" aria-hidden="true" />
+        )}
         <div className="absolute inset-0 bg-gradient-to-t from-ink-900/50 to-transparent" />
         <span className="absolute top-3 left-3 text-[11px] font-mono uppercase tracking-wider bg-white/90 text-ink-800 px-2.5 py-1 rounded-full">
           {program.category}

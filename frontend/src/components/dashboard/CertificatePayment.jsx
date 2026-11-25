@@ -2,8 +2,11 @@ import { useState } from 'react'
 import { FiLock, FiAlertCircle, FiCreditCard } from 'react-icons/fi'
 import useRazorpayScript from '../../hooks/useRazorpayScript'
 import { createCertificateOrder, verifyCertificatePayment } from '../../api/enrollments'
+import { formatRupees } from '../../utils/money'
 
 export default function CertificatePayment({ enrollment, onPaid }) {
+  // feeToPay = what checkout will charge right now (the admin's current price)
+  const fee = formatRupees(enrollment.feeToPay ?? enrollment.amount)
   const razorpayReady = useRazorpayScript()
   const [status, setStatus] = useState('idle') // idle | processing | error
   const [errorMessage, setErrorMessage] = useState('')
@@ -61,7 +64,7 @@ export default function CertificatePayment({ enrollment, onPaid }) {
     <div className="rounded-3xl bg-white border border-ink-900/10 shadow-card p-7">
       <h3 className="font-semibold text-lg">Certificate Fee</h3>
       <p className="text-sm text-ink-400 mt-2">
-        A one-time ₹150 processing fee unlocks your verified completion certificate.
+        A one-time {fee} processing fee unlocks your verified completion certificate.
       </p>
 
       {status === 'error' && (
@@ -72,7 +75,7 @@ export default function CertificatePayment({ enrollment, onPaid }) {
       )}
 
       <div className="flex items-baseline gap-2 mt-5">
-        <span className="text-3xl font-bold text-brand-600">₹150</span>
+        <span className="text-3xl font-bold text-brand-600">{fee}</span>
         <span className="text-xs text-ink-400">one-time</span>
       </div>
 
@@ -83,7 +86,7 @@ export default function CertificatePayment({ enrollment, onPaid }) {
       >
         {status === 'processing' ? 'Opening secure checkout…' : (
           <>
-            <FiCreditCard /> Pay ₹150 & Unlock Certificate
+            <FiCreditCard /> Pay {fee} & Unlock Certificate
           </>
         )}
       </button>
