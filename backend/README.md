@@ -63,10 +63,6 @@ uvicorn with `--proxy-headers` so rate limits see each visitor's real IP, not th
 After upgrading, run `alembic upgrade head` (adds `login_throttle` and `users.token_valid_after`).
 Users stay logged in only if they log in again once: sessions move from localStorage to the cookie.
 
-submitted it but haven't paid. Pacing lives in `app/services/reminder_service.py`:
-first reminder 2 days after enrolling (task) / 1 day after submitting (payment),
-then every 3+ days, at most 3 per enrollment, and never for enrollments older
-than 60 days. Paid students are never emailed.
 ## Background jobs & multiple workers
 
 Two jobs run inside the server: the hourly certificate unlock and the daily reminder
@@ -83,10 +79,28 @@ After upgrading, run `alembic upgrade head` (adds `job_locks`).
 
 A daily job (10:30 UTC) emails students who enrolled but haven't paid the
 certificate fee: one email if they never submitted the task, another if they
+## Reliable email (outbox)
+
+Receipts, certificates, offer letters and contact-form emails are not just fired off in
+memory. Each one is saved to the `email_outbox` table in the same database transaction as
+the thing that triggers it (the payment, the certificate unlock, the enrollment, the
+message), then sent right away. If sending fails (SMTP down, server restarted mid-send) a
+job retries every minute with growing delays (1m, 5m, 15m, 1h, 6h); after 6 attempts the
+email is marked **failed** and appears under **Admin > Emails**, where it can be retried
+with one click. Sent rows are deleted after 30 days and their content is cleared as soon as
+they are sent. Delivery is at-least-once: in a rare crash right after the mail server
+accepted a message, one duplicate can go out on the retry. Login codes (OTP) deliberately
+do not use the outbox: they expire in minutes and should not be stored in plain text.
+After upgrading, run `alembic upgrade head` (adds `email_outbox`).
+
 
 It is **off by default** (`REMINDERS_ENABLED=false`) so a deploy never emails
 existing students by surprise. To roll it out:
 
+submitted it but haven't paid. Pacing lives in `app/services/reminder_service.py`:
+first reminder 2 days after enrolling (task) / 1 day after submitting (payment),
+then every 3+ days, at most 3 per enrollment, and never for enrollments older
+than 60 days. Paid students are never emailed.
 1. `alembic upgrade head` (adds `reminder_count` / `last_reminder_at`).
 2. Admin dry run: `POST /api/admin/reminders/send?dryRun=true` reports how many
    students would be emailed, without sending or recording anything.

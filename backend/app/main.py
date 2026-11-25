@@ -16,6 +16,7 @@ from app.db.base import SessionLocal
 from app.db.seed import DEFAULT_ADMIN, seed_admin_user, seed_certificates, seed_programs
 from app.routers import (
     admin,
+    admin_emails,
     auth,
     certificate,
     contact,
@@ -28,6 +29,7 @@ from app.routers import (
 )
 from app.services.certificate_service import process_due_certificates
 from app.services.job_lock import run_exclusive
+from app.services.outbox_service import process_due as process_outbox
 from app.services.reminder_service import send_due_reminders
 from app.services.upload_service import upload_root
 
@@ -95,6 +97,11 @@ def _scheduled_certificate_check() -> None:
     run_exclusive("certificate_check", _run_certificate_check, min_interval=timedelta(minutes=50), ttl=timedelta(minutes=30))
 
 
+def _scheduled_outbox_check() -> None:
+    # Every minute: retry emails that failed to send (SMTP outage, restart mid-send).
+    run_exclusive("outbox_retry", process_outbox, min_interval=timedelta(seconds=45), ttl=timedelta(minutes=10))
+
+
 def _scheduled_reminder_check() -> None:
     run_exclusive("reminder_check", _run_reminder_check, min_interval=timedelta(hours=20), ttl=timedelta(hours=1))
 
@@ -130,8 +137,11 @@ def on_startup():
         _scheduled_reminder_check, "cron", hour=10, minute=30, timezone=timezone.utc,
         id="reminder_check", replace_existing=True,
     )
+    scheduler.add_job(_scheduled_outbox_check, "interval", minutes=1, id="outbox_retry", replace_existing=True)
     scheduler.start()
     run_exclusive("certificate_check", _run_certificate_check, min_interval=timedelta(minutes=1), ttl=timedelta(minutes=30))
+    # Flush anything left over from before this (re)start without waiting for the first tick.
+    run_exclusive("outbox_retry", process_outbox, min_interval=timedelta(seconds=10), ttl=timedelta(minutes=10))
 
 
 @app.on_event("shutdown")
@@ -156,6 +166,7 @@ app.include_router(payments.router)
 app.include_router(enrollments.router)
 app.include_router(admin.router)
 app.include_router(invoice_settings.router)
+app.include_router(admin_emails.router)
 app.include_router(unsubscribe.router)
 
 # Admin-uploaded program images (already validated + re-encoded on upload).

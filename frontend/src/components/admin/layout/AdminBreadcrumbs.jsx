@@ -7,6 +7,7 @@ const LABELS = {
   programs: 'Courses',
   payments: 'Payments',
   'invoice-settings': 'Invoice details',
+  emails: 'Emails',
   messages: 'Messages',
   analytics: 'Analytics',
 }

@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models import Certificate, Enrollment
 from app.services.email_service import send_email_with_attachments
+from app.services.outbox_service import add as queue_email, deliver
 from app.services.pdf_service import generate_certificate_pdf
 
 COURSE_DURATION_DAYS = 28
@@ -85,9 +86,27 @@ def unlock_certificate(db: Session, enrollment: Enrollment) -> dict | None:
                 issued_on=issued_at.date().isoformat(),
             )
         )
+    db.refresh(enrollment)  # reads the row as just updated, inside this transaction
+    data = certificate_pdf_payload(enrollment)
+    # The email is saved in the SAME transaction as the unlock: a certificate can never
+    # be unlocked without its email being queued (and retried if sending fails).
+    queue_email(
+        db,
+        "certificate",
+        to=enrollment.email,
+        subject=f"Your NeuIntern Certificate — {enrollment.program_title}",
+        payload={"to": enrollment.email, "name": enrollment.name, "program_title": enrollment.program_title, "data": data},
+        dedupe_key=f"certificate:{cert_id}",
+    )
     db.commit()
     db.refresh(enrollment)
-    return certificate_pdf_payload(enrollment)
+    return data
+
+
+def certificate_outbox_id(db: Session, cert_id: str) -> str | None:
+    from app.db.models import EmailOutbox
+
+    return db.query(EmailOutbox.id).filter(EmailOutbox.dedupe_key == f"certificate:{cert_id}").scalar()
 
 
 def send_certificate_email(to: str, student_name: str, program_title: str, data: dict) -> None:
@@ -117,7 +136,11 @@ def unlock_and_email_certificate(db: Session, enrollment: Enrollment) -> bool:
     data = unlock_certificate(db, enrollment)
     if data is None:
         return False
-    send_certificate_email(enrollment.email, enrollment.name, enrollment.program_title, data)
+    # Already saved in the outbox by unlock_certificate; try it now. If SMTP is down the
+    # retry job picks it up, so a failure here no longer loses the email.
+    outbox_id = certificate_outbox_id(db, data["certificateId"])
+    if outbox_id:
+        deliver(outbox_id)
     return True
 
 

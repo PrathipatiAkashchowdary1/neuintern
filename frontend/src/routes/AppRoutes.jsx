@@ -32,6 +32,7 @@ const AdminPayments = lazy(() => import('../pages/admin/AdminPayments'))
 const AdminMessages = lazy(() => import('../pages/admin/AdminMessages'))
 const AdminPrograms = lazy(() => import('../pages/admin/AdminPrograms'))
 const AdminInvoice = lazy(() => import('../pages/admin/AdminInvoice'))
+const AdminEmails = lazy(() => import('../pages/admin/AdminEmails'))
 
 export default function AppRoutes() {
   return (
@@ -69,6 +70,7 @@ export default function AppRoutes() {
             <Route path="messages" element={<AdminMessages />} />
             <Route path="programs" element={<AdminPrograms />} />
             <Route path="invoice-settings" element={<AdminInvoice />} />
+            <Route path="emails" element={<AdminEmails />} />
           </Route>
         </Route>
       </Routes>

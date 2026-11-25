@@ -16,8 +16,9 @@ from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from app.db.models import Enrollment
-from app.services.certificate_service import is_course_complete, send_certificate_email, unlock_certificate
-from app.services.email_service import run_email_task, send_email_with_attachments
+from app.services.certificate_service import certificate_outbox_id, is_course_complete, unlock_certificate
+from app.services.email_service import send_email_with_attachments
+from app.services.outbox_service import add as queue_email, send_soon
 from app.services.invoice_settings import details_for, snapshot_json
 from app.services.pdf_service import generate_invoice_pdf
 
@@ -59,15 +60,6 @@ def send_invoice_email(data: dict) -> None:
     )
 
 
-def _dispatch(background: BackgroundTasks | None, fn, *args) -> None:
-    """Queue on the request's background tasks, or run inline when there is no
-    request (e.g. called from a script). Failures are logged either way."""
-    if background is not None:
-        background.add_task(run_email_task, fn, *args)
-    else:
-        run_email_task(fn, *args)
-
-
 def mark_enrollment_paid(
     db: Session,
     enrollment: Enrollment,
@@ -77,8 +69,9 @@ def mark_enrollment_paid(
 ) -> bool:
     """Marks the enrollment paid. Returns True only for the caller that
     actually performed the transition (False if it was already paid).
-    Invoice / certificate emails are queued on `background` when given, so the
-    HTTP response is not held up by PDF generation or SMTP."""
+    The invoice / certificate emails are saved to the email outbox with the payment
+    and sent from `background` when given (so the HTTP response is not held up by
+    PDF generation or SMTP), or inline when there is no request."""
     result = db.execute(
         update(Enrollment)
         .where(Enrollment.id == enrollment.id, Enrollment.payment_status != "paid")
@@ -91,30 +84,40 @@ def mark_enrollment_paid(
             invoice_details_json=snapshot_json(db),
         )
     )
-    db.commit()
-    db.refresh(enrollment)
     if result.rowcount != 1:
+        db.commit()
+        db.refresh(enrollment)
         return False
 
-    # Payment is already committed; a mail/PDF hiccup must not undo or fail it.
-    _dispatch(background, send_invoice_email, invoice_data(enrollment))
+    # The invoice email is saved in the SAME transaction as the payment, so a paid
+    # enrollment can never lose its receipt (it is retried until it sends).
+    db.refresh(enrollment)  # the row as just updated, inside this transaction
+    invoice = queue_email(
+        db,
+        "invoice",
+        to=enrollment.email,
+        subject=f"Payment Receipt — {enrollment.program_title}",
+        payload={"data": invoice_data(enrollment)},
+        dedupe_key=f"invoice:{enrollment.id}",
+    )
+    invoice_id = invoice.id
+    db.commit()
+    db.refresh(enrollment)
+
+    to_send = [invoice_id]
 
     # Normally the hourly scheduler unlocks the certificate once the course
     # ends. Someone paying after that point shouldn't wait for the next tick.
     if is_course_complete(enrollment) and not enrollment.certificate_unlocked:
         try:
-            cert_data = unlock_certificate(db, enrollment)
+            cert_data = unlock_certificate(db, enrollment)  # queues the certificate email itself
         except Exception:
             logger.exception("Certificate unlock failed for enrollment %s", enrollment.id)
         else:
-            if cert_data is not None:  # None: another worker already unlocked and emailed it
-                _dispatch(
-                    background,
-                    send_certificate_email,
-                    enrollment.email,
-                    enrollment.name,
-                    enrollment.program_title,
-                    cert_data,
-                )
+            if cert_data is not None:  # None: another worker already unlocked it
+                certificate_id = certificate_outbox_id(db, cert_data["certificateId"])
+                if certificate_id:
+                    to_send.append(certificate_id)
 
+    send_soon(background, *to_send)
     return True

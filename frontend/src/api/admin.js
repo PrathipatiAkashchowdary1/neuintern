@@ -57,6 +57,17 @@ export async function previewInvoiceSettings(payload) {
   return data
 }
 
+// The email outbox: { counts: {pending, sent, failed}, items: [...] }. `status` is all|pending|sent|failed.
+export async function fetchEmailOutbox(status = 'all') {
+  const { data } = await apiClient.get('/admin/emails', { params: { status } })
+  return data.data
+}
+
+export async function retryEmail(id) {
+  const { data } = await apiClient.post(`/admin/emails/${id}/retry`)
+  return data
+}
+
 export async function fetchAllMessages() {
   const { data } = await apiClient.get('/admin/messages')
   return data.data

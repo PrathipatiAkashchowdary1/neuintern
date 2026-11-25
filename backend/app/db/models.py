@@ -289,3 +289,23 @@ class JobLock(Base):
     name: Mapped[str] = mapped_column(String(100), primary_key=True)
     locked_until: Mapped[datetime] = mapped_column(DateTime, nullable=True)
     last_run_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+
+
+class EmailOutbox(Base):
+    """An email waiting to be (re)sent; see app/services/outbox_service.py."""
+
+    __tablename__ = "email_outbox"
+
+    id: Mapped[str] = mapped_column(String(16), primary_key=True, default=gen_id)
+    kind: Mapped[str] = mapped_column(String(30))
+    to_email: Mapped[str] = mapped_column(String(255))
+    subject: Mapped[str] = mapped_column(String(255))
+    payload: Mapped[str] = mapped_column(Text, nullable=True)  # JSON; cleared once sent
+    dedupe_key: Mapped[str] = mapped_column(String(120), unique=True, nullable=True)
+    status: Mapped[str] = mapped_column(String(10), default="pending", index=True)  # pending | sent | failed
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    next_attempt_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    locked_until: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+    last_error: Mapped[str] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    sent_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)

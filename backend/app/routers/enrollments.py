@@ -19,7 +19,7 @@ from app.services.certificate_service import (
 )
 from app.services.enrollments_service import enrollment_to_dict
 from app.services.fee_service import CERTIFICATE_CURRENCY, effective_fee, fee_to_pay, sync_unpaid_fee
-from app.services.email_service import run_email_task, send_email_with_attachments
+from app.services.outbox_service import add as queue_email, send_soon
 from app.services.payment_service import invoice_data as _invoice_data, mark_enrollment_paid
 from app.services.pdf_service import generate_certificate_pdf, generate_invoice_pdf, generate_offer_letter_pdf
 from app.services.razorpay_client import get_client
@@ -72,18 +72,28 @@ async def enroll(
         payment_status="unpaid",
     )
     db.add(enrollment)
+    db.flush()  # assigns the id
+    # Saved in the same transaction as the enrollment, so the offer letter cannot be
+    # forgotten; it is sent right after the response and retried if that fails.
+    offer = queue_email(
+        db,
+        "offer_letter",
+        to=enrollment.email,
+        subject=f"Your NeuIntern Offer Letter — {enrollment.program_title}",
+        payload={
+            "to": enrollment.email,
+            "name": enrollment.name,
+            "program_title": enrollment.program_title,
+            "enrollment_id": enrollment.id,
+            "pdf_data": _offer_letter_pdf_payload(enrollment),
+        },
+        dedupe_key=f"offer:{enrollment.id}",
+    )
+    offer_id = offer.id
     db.commit()
     db.refresh(enrollment)
 
-    background_tasks.add_task(
-        run_email_task,
-        send_offer_letter_email,
-        enrollment.email,
-        enrollment.name,
-        enrollment.program_title,
-        enrollment.id,
-        _offer_letter_pdf_payload(enrollment),
-    )
+    send_soon(background_tasks, offer_id)
 
     return {"success": True, "data": _out(db, enrollment)}
 
@@ -132,26 +142,6 @@ def _offer_letter_pdf_payload(enrollment: Enrollment) -> dict:
     data["startDate"] = enrollment.enrolled_at.strftime("%B %d, %Y")
     data["endDate"] = (enrollment.enrolled_at + timedelta(days=28)).strftime("%B %d, %Y")
     return data
-
-
-def send_offer_letter_email(to: str, name: str, program_title: str, enrollment_id: str, pdf_data: dict) -> None:
-    """PDF + SMTP from plain data (no ORM objects), so it can run as a
-    background task after the request's DB session is closed."""
-    pdf_buffer = generate_offer_letter_pdf(pdf_data)
-    filename = f"NeuIntern-Offer-Letter-{enrollment_id[:8]}.pdf"
-    send_email_with_attachments(
-        to=to,
-        subject=f"Your NeuIntern Offer Letter — {program_title}",
-        body=(
-            f"Hi {name},\n\n"
-            f"Congratulations on enrolling in the {program_title} internship program! "
-            f"Your official offer letter is attached.\n\n"
-            f"Next step: log in to your dashboard and submit your task (GitHub + LinkedIn links) "
-            f"to move on to certification.\n\n"
-            f"— The NeuIntern Team"
-        ),
-        attachments=[(filename, pdf_buffer.read())],
-    )
 
 
 @router.get("/{enrollment_id}/offer-letter")

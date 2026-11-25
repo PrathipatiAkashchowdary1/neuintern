@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { FiHome, FiUsers, FiBook, FiCreditCard, FiFileText, FiMail, FiLogOut, FiX } from 'react-icons/fi'
+import { FiHome, FiUsers, FiBook, FiCreditCard, FiFileText, FiMail, FiSend, FiLogOut, FiX } from 'react-icons/fi'
 import { cn } from '../../../utils/cn'
 import { useAuth } from '../../../context/AuthContext'
 
@@ -10,6 +10,7 @@ const links = [
   { to: '/admin/payments', label: 'Payments', icon: FiCreditCard },
   { to: '/admin/invoice-settings', label: 'Invoice', icon: FiFileText },
   { to: '/admin/messages', label: 'Messages', icon: FiMail },
+  { to: '/admin/emails', label: 'Emails', icon: FiSend },
 ]
 
 export default function Sidebar({ open, onClose, unreadMessages = 0 }) {

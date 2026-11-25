@@ -84,7 +84,7 @@ def outbox(monkeypatch):
     for target in (
         "app.services.payment_service.send_email_with_attachments",
         "app.services.certificate_service.send_email_with_attachments",
-        "app.routers.enrollments.send_email_with_attachments",
+        "app.services.offer_letter_email.send_email_with_attachments",
     ):
         monkeypatch.setattr(target, fake_send)
     return sent

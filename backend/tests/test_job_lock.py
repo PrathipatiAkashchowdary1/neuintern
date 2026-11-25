@@ -221,7 +221,14 @@ class TestSchedulerEntryPoints:
         monkeypatch.setattr(main_module, "run_exclusive", lambda *a, **k: events.append("run"))
         monkeypatch.setattr(settings, "scheduler_enabled", True)
         main_module.on_startup()
-        assert events == ["add_job:certificate_check", "add_job:reminder_check", "start", "run"]
+        assert events == [
+            "add_job:certificate_check",
+            "add_job:reminder_check",
+            "add_job:outbox_retry",
+            "start",
+            "run",  # certificate check
+            "run",  # flush the email outbox left over from before the restart
+        ]
 
     def test_shutdown_is_safe_when_the_scheduler_never_started(self):
         main_module.on_shutdown()  # must not raise SchedulerNotRunningError
