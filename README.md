@@ -1,5 +1,7 @@
 # NeuIntern — React + FastAPI + Razorpay + Student/Admin Dashboards
 
+[![CI](https://github.com/PrathipatiAkashchowdary1/neuintern/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/PrathipatiAkashchowdary1/neuintern/actions/workflows/ci.yml)
+
 ```
 frontend/   React + Vite site — public pages, auth, student dashboard, admin dashboard
 backend/    FastAPI API — auth, enrollments, payments, admin
