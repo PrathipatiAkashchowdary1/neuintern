@@ -12,7 +12,18 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expires_minutes: int = 60 * 24 * 7  # 7 days
 
-    cors_origin: str = "*"  # comma-separated list, or "*"
+    cors_origin: str = "*"  # comma-separated list, or "*" (development only)
+
+    # Browser sessions: the JWT lives in an httpOnly cookie so page scripts (XSS)
+    # can never read it. Secure defaults to on in production.
+    session_cookie_name: str = "neuintern_session"
+    cookie_secure: bool | None = None  # None = on when ENVIRONMENT=production
+    cookie_samesite: str = "lax"  # "none" only if the site and API are on different domains
+    cookie_domain: str = ""  # e.g. .neuintern.in to share across subdomains; empty = API host only
+
+    # Password for the seeded admin account. Required in production (the built-in
+    # default is public in the README and would be refused).
+    admin_password: str = ""
 
     razorpay_key_id: str = ""
     razorpay_key_secret: str = ""
@@ -45,6 +56,14 @@ class Settings(BaseSettings):
 
     otp_expiry_minutes: int = 10
     otp_verification_valid_minutes: int = 30
+
+    @property
+    def is_production(self) -> bool:
+        return self.environment.strip().lower() == "production"
+
+    @property
+    def session_cookie_secure(self) -> bool:
+        return self.is_production if self.cookie_secure is None else self.cookie_secure
 
     @property
     def cors_origins(self) -> list[str]:

@@ -1,4 +1,6 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -10,6 +12,7 @@ from app.deps import get_current_user
 from app.schemas.auth import LoginRequest, RegisterRequest
 from app.schemas.otp import ForgotPasswordRequest, ResetPasswordRequest, SendOtpRequest, VerifyOtpRequest
 from app.services.otp_service import generate_and_send_otp, has_recent_verified_otp, verify_otp
+from app.services.throttle import ensure_not_locked, make_key, record_failure, record_success
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -27,8 +30,28 @@ def _user_out(user: User) -> dict:
     }
 
 
-def _token_response(user: User) -> dict:
+# Verified when the email is unknown so a login for a real account and one for a
+# non-existent account take the same time (no account discovery by timing).
+_DUMMY_HASH = hash_password("timing-equalisation-placeholder")
+
+
+def _set_session_cookie(response: Response, token: str) -> None:
+    response.set_cookie(
+        key=settings.session_cookie_name,
+        value=token,
+        max_age=settings.jwt_expires_minutes * 60,
+        httponly=True,  # not readable by page scripts, so XSS cannot steal the session
+        secure=settings.session_cookie_secure,
+        samesite=settings.cookie_samesite.lower(),
+        domain=settings.cookie_domain or None,
+        path="/",
+    )
+
+
+def _token_response(user: User, response: Response) -> dict:
     token = create_access_token({"id": user.id, "email": user.email, "role": user.role})
+    _set_session_cookie(response, token)
+    # The token is still returned for non-browser API clients; the website ignores it.
     return {"success": True, "data": {"token": token, "user": _user_out(user)}}
 
 
@@ -60,8 +83,12 @@ async def send_otp(
 @router.post("/verify-otp")
 @limiter.limit("10/hour")
 async def verify_otp_route(request: Request, payload: VerifyOtpRequest, db: Session = Depends(get_db)):
+    key = make_key("otp", payload.email)
+    ensure_not_locked(db, key)
     if not verify_otp(db, payload.email, payload.otp, payload.purpose):
+        record_failure(db, key)
         raise HTTPException(status_code=400, detail="Invalid or expired code. Please request a new one.")
+    record_success(db, key)
     return {"success": True, "message": "Email verified."}
 
 
@@ -86,16 +113,24 @@ async def forgot_password(
 
 
 @router.post("/reset-password")
-async def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)):
+@limiter.limit("20/hour")
+async def reset_password(request: Request, payload: ResetPasswordRequest, db: Session = Depends(get_db)):
+    key = make_key("otp", payload.email)
+    ensure_not_locked(db, key)
     if not verify_otp(db, payload.email, payload.otp, "reset_password"):
+        record_failure(db, key)
         raise HTTPException(status_code=400, detail="Invalid or expired code. Please request a new one.")
+    record_success(db, key)
 
     user = db.query(User).filter(User.email == payload.email).first()
     if not user:
         raise HTTPException(status_code=404, detail="No account found for that email")
 
     user.password_hash = hash_password(payload.new_password)
+    # Log out everywhere: any token issued before this moment stops working.
+    user.token_valid_after = datetime.now(timezone.utc).replace(tzinfo=None)
     db.commit()
+    record_success(db, make_key("login", payload.email))  # a reset also clears a login lockout
 
     return {"success": True, "message": "Password updated. You can now log in."}
 
@@ -105,7 +140,8 @@ async def reset_password(payload: ResetPasswordRequest, db: Session = Depends(ge
 # ---------------------------------------------------------------------------
 
 @router.post("/register", status_code=201)
-async def register(payload: RegisterRequest, db: Session = Depends(get_db)):
+@limiter.limit("20/hour")
+async def register(request: Request, response: Response, payload: RegisterRequest, db: Session = Depends(get_db)):
     existing = db.query(User).filter(User.email == payload.email).first()
     if existing:
         raise HTTPException(status_code=409, detail="An account with this email already exists")
@@ -130,16 +166,42 @@ async def register(payload: RegisterRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user)
 
-    return _token_response(user)
+    return _token_response(user, response)
 
 
 @router.post("/login")
-async def login(payload: LoginRequest, db: Session = Depends(get_db)):
+@limiter.limit("60/minute")
+async def login(request: Request, response: Response, payload: LoginRequest, db: Session = Depends(get_db)):
+    key = make_key("login", payload.email)
+    ensure_not_locked(db, key)
+
     user = db.query(User).filter(User.email == payload.email).first()
-    if not user or not verify_password(payload.password, user.password_hash):
+    if user:
+        password_ok = verify_password(payload.password, user.password_hash)
+    else:
+        verify_password(payload.password, _DUMMY_HASH)
+        password_ok = False
+
+    if not password_ok:
+        record_failure(db, key)
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
-    return _token_response(user)
+    record_success(db, key)
+    return _token_response(user, response)
+
+
+@router.post("/logout")
+async def logout(response: Response):
+    """Clears the session cookie. Safe to call when not logged in."""
+    response.delete_cookie(
+        key=settings.session_cookie_name,
+        path="/",
+        domain=settings.cookie_domain or None,
+        secure=settings.session_cookie_secure,
+        httponly=True,
+        samesite=settings.cookie_samesite.lower(),
+    )
+    return {"success": True, "message": "Logged out."}
 
 
 @router.get("/me")

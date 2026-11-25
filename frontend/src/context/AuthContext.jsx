@@ -25,9 +25,9 @@ export function AuthProvider({ children }) {
     return newUser
   }, [])
 
-  const logout = useCallback(() => {
-    logoutApi()
-    setUser(null)
+  const logout = useCallback(async () => {
+    setUser(null) // sign out in the UI immediately
+    await logoutApi() // then clear the cookie on the server
   }, [])
 
   return (

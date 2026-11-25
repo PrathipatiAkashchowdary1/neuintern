@@ -22,30 +22,32 @@ export async function resetPassword(email, otp, newPassword) {
 export async function registerUser(payload) {
   // payload: { fullName, email, phone, degree, branch, currentYear, password }
   const { data } = await apiClient.post('/auth/register', payload)
-  localStorage.setItem('neuintern_token', data.data.token)
-  return data.data.user
+  return data.data.user // the API also set the session cookie
 }
 
 export async function loginUser(credentials) {
   const { data } = await apiClient.post('/auth/login', credentials)
-  localStorage.setItem('neuintern_token', data.data.token)
-  return data.data.user
+  return data.data.user // the API also set the session cookie
 }
 
 export async function getCurrentUser() {
-  const token = localStorage.getItem('neuintern_token')
-  if (!token) return null
+  // Older versions kept the token in localStorage, where any injected script could read it.
+  // Remove it so it is not left lying around on returning visitors' browsers.
+  localStorage.removeItem('neuintern_token')
   try {
-    const { data } = await apiClient.get('/auth/me')
+    const { data } = await apiClient.get('/auth/me') // 401 when there is no valid session cookie
     return data.data
   } catch {
-    localStorage.removeItem('neuintern_token')
     return null
   }
 }
 
-export function logout() {
-  localStorage.removeItem('neuintern_token')
+export async function logout() {
+  try {
+    await apiClient.post('/auth/logout') // asks the API to clear the cookie
+  } catch {
+    // Offline or already expired: nothing more to do; the caller clears local state anyway.
+  }
 }
 
 // Reserved for Phase 2 — backend routes exist and return 501 until implemented.

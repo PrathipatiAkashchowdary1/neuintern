@@ -11,8 +11,9 @@ from slowapi.errors import RateLimitExceeded
 
 from app.core.config import settings
 from app.core.limiter import limiter
+from app.core.startup_checks import validate_admin_account, validate_production_settings
 from app.db.base import SessionLocal
-from app.db.seed import seed_admin_user, seed_certificates, seed_programs
+from app.db.seed import DEFAULT_ADMIN, seed_admin_user, seed_certificates, seed_programs
 from app.routers import (
     admin,
     auth,
@@ -45,7 +46,12 @@ app.add_middleware(
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
-    return JSONResponse(status_code=exc.status_code, content={"success": False, "message": exc.detail})
+    # Keep exc.headers: Retry-After on 429s, WWW-Authenticate on 401s, and so on.
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"success": False, "message": exc.detail},
+        headers=exc.headers,
+    )
 
 
 @app.exception_handler(RequestValidationError)
@@ -87,12 +93,14 @@ scheduler = BackgroundScheduler()
 
 @app.on_event("startup")
 def on_startup():
+    validate_production_settings()  # refuses to boot a production server with unsafe settings
     # Schema is managed by Alembic (`alembic upgrade head`), not create_all().
     db = SessionLocal()
     try:
         seed_certificates(db)
         seed_programs(db)
         seed_admin_user(db)
+        validate_admin_account(db, DEFAULT_ADMIN["password"], DEFAULT_ADMIN["email"])
     finally:
         db.close()
 

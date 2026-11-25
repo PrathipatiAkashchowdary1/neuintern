@@ -2,6 +2,7 @@ import json
 
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.security import hash_password
 from app.data.catalog import PROGRAMS, TESTIMONIALS  # noqa: F401 (testimonials stay JSON-served)
 from app.db.models import Certificate, Program, User
@@ -62,6 +63,13 @@ def seed_admin_user(db: Session) -> None:
     existing = db.query(User).filter(User.email == DEFAULT_ADMIN["email"]).first()
     if existing:
         return
+    # The default password is public (README, source). In production an admin is only
+    # created when ADMIN_PASSWORD is provided; otherwise none is, and nobody can log in
+    # with a known password.
+    password = settings.admin_password or (None if settings.is_production else DEFAULT_ADMIN["password"])
+    if password is None:
+        print("[seed] ENVIRONMENT=production and ADMIN_PASSWORD is not set: no admin account was created.")
+        return
     db.add(
         User(
             full_name=DEFAULT_ADMIN["full_name"],
@@ -70,7 +78,7 @@ def seed_admin_user(db: Session) -> None:
             degree=DEFAULT_ADMIN["degree"],
             branch=DEFAULT_ADMIN["branch"],
             current_year=DEFAULT_ADMIN["current_year"],
-            password_hash=hash_password(DEFAULT_ADMIN["password"]),
+            password_hash=hash_password(password),
             role="admin",
         )
     )

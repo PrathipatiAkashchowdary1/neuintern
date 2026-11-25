@@ -1,4 +1,5 @@
 import base64
+import time
 import hashlib
 import hmac
 from datetime import datetime, timedelta, timezone
@@ -20,7 +21,10 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def create_access_token(data: dict) -> str:
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(minutes=settings.jwt_expires_minutes)
-    to_encode.update({"exp": expire})
+    # iat lets a password reset invalidate every token issued before it.
+    # iatf is a high-resolution issued-at (the standard iat is whole seconds, so a
+    # login in the same second as a password reset would look older than the reset).
+    to_encode.update({"exp": expire, "iat": datetime.now(timezone.utc), "iatf": time.time()})
     return jwt.encode(to_encode, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 

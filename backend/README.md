@@ -38,6 +38,35 @@ payment flow (order, verify, webhook, idempotency) and certificate unlocking.
 
 A daily job (10:30 UTC) emails students who enrolled but haven't paid the
 certificate fee: one email if they never submitted the task, another if they
+## Security & sessions
+
+**Sessions.** Logging in sets an `httpOnly` cookie (`neuintern_session`) holding the JWT,
+so page scripts can never read it. The login response still includes the token for
+non-browser API clients (`Authorization: Bearer`). Cookie-authenticated requests that
+change data must send an `X-Requested-With` header (the frontend does this) as a CSRF
+guard. `POST /api/auth/logout` clears the cookie. Resetting a password logs out every
+existing session.
+
+**Brute-force protection.** 5 failed logins (or wrong reset/verification codes) for the
+same email within 15 minutes lock that email for 15 minutes (HTTP 429 + `Retry-After`).
+Counters live in the database, so they hold across workers. Unknown emails lock the same
+way, so the lockout does not reveal which emails are registered. Passwords: 8+ characters,
+at most 72 bytes.
+
+**Production checklist.** With `ENVIRONMENT=production` the server refuses to start unless:
+
+- `JWT_SECRET` is random and 32+ characters (`python -c "import secrets; print(secrets.token_urlsafe(48))"`)
+- `CORS_ORIGIN` lists your site's exact origin(s), not `*`
+- cookies are `Secure` (the default in production; don't set `COOKIE_SECURE=false`)
+- the admin account does not still have the published default password
+
+Also set `ADMIN_PASSWORD` before the first start (otherwise no admin is created in production).
+If the site and API are on different domains, set `COOKIE_SAMESITE=none`; for subdomains
+of one domain, `COOKIE_DOMAIN=.yourdomain.com` is enough. Behind a reverse proxy run
+uvicorn with `--proxy-headers` so rate limits see each visitor's real IP, not the proxy's.
+After upgrading, run `alembic upgrade head` (adds `login_throttle` and `users.token_valid_after`).
+Users stay logged in only if they log in again once: sessions move from localStorage to the cookie.
+
 submitted it but haven't paid. Pacing lives in `app/services/reminder_service.py`:
 first reminder 2 days after enrolling (task) / 1 day after submitting (payment),
 then every 3+ days, at most 3 per enrollment, and never for enrollments older

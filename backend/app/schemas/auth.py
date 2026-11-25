@@ -1,5 +1,6 @@
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
+from app.schemas.passwords import validate_new_password
 from app.schemas.validators import normalize_and_validate_indian_phone
 
 
@@ -10,7 +11,7 @@ class RegisterRequest(BaseModel):
     degree: str = Field(min_length=1)
     branch: str = Field(min_length=1)
     current_year: str = Field(min_length=1, alias="currentYear")
-    password: str = Field(min_length=6)
+    password: str = Field(min_length=1)
 
     class Config:
         populate_by_name = True
@@ -20,10 +21,15 @@ class RegisterRequest(BaseModel):
     def validate_phone(cls, v: str) -> str:
         return normalize_and_validate_indian_phone(v)
 
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        return validate_new_password(v)
+
 
 class LoginRequest(BaseModel):
     email: EmailStr
-    password: str = Field(min_length=1)
+    password: str = Field(min_length=1, max_length=1000)
 
 
 class UserOut(BaseModel):

@@ -34,6 +34,10 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255))
     role: Mapped[str] = mapped_column(String(20), default="student")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    # Tokens issued before this moment are rejected (set on password reset).
+    token_valid_after: Mapped[datetime] = mapped_column(
+        DateTime, nullable=True
+    )
     # Set by the unsubscribe link in reminder emails; stops all reminders.
     reminders_opt_out: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=sa.false()
@@ -263,3 +267,15 @@ class InvoiceSettings(Base):
     team_name: Mapped[str] = mapped_column(String(80), default="")
     brand_line: Mapped[str] = mapped_column(String(100), default="")
     footer_note: Mapped[str] = mapped_column(String(100), default="")
+
+
+class LoginThrottle(Base):
+    """Failed-attempt counter per key (for example "login:<email>"), kept in the
+    database so the limit holds across server workers and restarts."""
+
+    __tablename__ = "login_throttle"
+
+    key: Mapped[str] = mapped_column(String(320), primary_key=True)
+    failures: Mapped[int] = mapped_column(Integer, default=0)
+    window_start: Mapped[datetime] = mapped_column(DateTime, default=now)
+    locked_until: Mapped[datetime] = mapped_column(DateTime, nullable=True)

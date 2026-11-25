@@ -6,17 +6,15 @@
 const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
   timeout: 10000,
+  // The session is an httpOnly cookie set by the API; the browser attaches it. Page
+  // scripts never see the token, so an XSS bug cannot steal it.
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
+    // Proof the request came from this app: the API requires a custom header on
+    // cookie-authenticated writes, which other websites cannot send (CSRF guard).
+    'X-Requested-With': 'neuintern',
   },
-})
-
-apiClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem('neuintern_token')
-  if (token) {
-    config.headers.Authorization = 'Bearer ' + token
-  }
-  return config
 })
 
 apiClient.interceptors.response.use(
