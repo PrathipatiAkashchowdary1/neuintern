@@ -22,3 +22,5 @@ backend/neuintern.db
 # Env files
 frontend/.env
 backend/.env
+
+.pytest_cache/

@@ -23,6 +23,17 @@ uvicorn app.main:app --reload --port 8000
 - API: `http://localhost:8000`
 - Interactive docs: `http://localhost:8000/docs`
 
+## Tests
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+
+Tests run against a throwaway SQLite database and never send real email or call
+Razorpay, whatever your `.env` says (see `tests/conftest.py`). They cover the
+payment flow (order, verify, webhook, idempotency) and certificate unlocking.
+
 ## Database migrations (Alembic)
 
 The schema is managed by Alembic (`alembic/versions/`); the app no longer calls
