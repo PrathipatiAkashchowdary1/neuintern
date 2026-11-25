@@ -8,7 +8,7 @@ from slowapi.errors import RateLimitExceeded
 
 from app.core.config import settings
 from app.core.limiter import limiter
-from app.db.base import Base, SessionLocal, engine
+from app.db.base import SessionLocal
 from app.db.seed import seed_admin_user, seed_certificates, seed_programs
 from app.routers import admin, auth, certificate, contact, enrollments, payments, programs, testimonials
 from app.services.certificate_service import process_due_certificates
@@ -57,7 +57,7 @@ scheduler = BackgroundScheduler()
 
 @app.on_event("startup")
 def on_startup():
-    Base.metadata.create_all(bind=engine)
+    # Schema is managed by Alembic (`alembic upgrade head`), not create_all().
     db = SessionLocal()
     try:
         seed_certificates(db)

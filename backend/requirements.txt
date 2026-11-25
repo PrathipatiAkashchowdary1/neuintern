@@ -46,3 +46,6 @@ psycopg2-binary==2.9.12
 apscheduler==3.11.3
 tzlocal==5.4.4
 pymysql==1.2.0
+alembic==1.13.2
+Mako==1.4.1
+MarkupSafe==3.0.3
