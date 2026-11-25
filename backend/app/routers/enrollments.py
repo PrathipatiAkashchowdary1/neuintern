@@ -16,11 +16,10 @@ from app.schemas.payments import VerifyPaymentRequest
 from app.services.certificate_service import (
     completion_date,
     certificate_pdf_payload,
-    is_course_complete,
-    unlock_and_email_certificate,
 )
 from app.services.enrollments_service import enrollment_to_dict
 from app.services.email_service import send_email_with_attachments
+from app.services.payment_service import invoice_data as _invoice_data, mark_enrollment_paid
 from app.services.pdf_service import generate_certificate_pdf, generate_invoice_pdf, generate_offer_letter_pdf
 from app.services.razorpay_client import get_client
 
@@ -241,6 +240,15 @@ async def verify_certificate_payment(
 ):
     enrollment = _get_owned_enrollment(enrollment_id, current_user, db)
 
+    # Idempotent: a retry, double-click, or webhook that got here first just
+    # reports the current state: no second invoice, no downgrade.
+    if enrollment.payment_status == "paid":
+        return {"success": True, "message": _paid_message(enrollment), "data": enrollment_to_dict(enrollment)}
+
+    # The signature must be for THIS enrollment's order, not just any order.
+    if not enrollment.razorpay_order_id or payload.razorpay_order_id != enrollment.razorpay_order_id:
+        raise HTTPException(status_code=400, detail="Payment does not match this enrollment.")
+
     expected_signature = hmac.new(
         (settings.razorpay_key_secret or "").encode(),
         f"{payload.razorpay_order_id}|{payload.razorpay_payment_id}".encode(),
@@ -248,73 +256,23 @@ async def verify_certificate_payment(
     ).hexdigest()
 
     if not hmac.compare_digest(expected_signature, payload.razorpay_signature):
-        enrollment.payment_status = "failed"
-        db.commit()
+        # Not marked "failed": the student can retry on the same order, and
+        # the webhook can still confirm a genuine payment.
         raise HTTPException(
             status_code=400, detail="Payment verification failed. Please contact support if you were charged."
         )
 
-    enrollment.payment_status = "paid"
-    enrollment.razorpay_payment_id = payload.razorpay_payment_id
-    enrollment.razorpay_signature = payload.razorpay_signature
-    enrollment.paid_at = datetime.now(timezone.utc)
-    db.commit()
-    db.refresh(enrollment)
+    # Sends the invoice (and unlocks the certificate if the course is already
+    # over) only for the caller that actually flips unpaid -> paid.
+    mark_enrollment_paid(db, enrollment, payload.razorpay_payment_id, payload.razorpay_signature)
 
-    # Payment confirmation goes out immediately regardless of course timing.
-    _email_invoice(enrollment)
-
-    # The certificate itself is a different story: it only unlocks (and only
-    # gets emailed) once the course's completion date has actually passed.
-    # Most students pay mid-course, so normally the background scheduler
-    # (see app/services/certificate_service.py + app/main.py) picks this up
-    # later. The one exception handled here: someone who pays *after* the
-    # course has already ended shouldn't have to wait for the next scheduler
-    # tick — unlock immediately in that case.
-    message = "Payment verified. Your certificate will be emailed once the course is complete."
-    if is_course_complete(enrollment):
-        unlock_and_email_certificate(db, enrollment)
-        db.refresh(enrollment)
-        message = "Payment verified. Your certificate is ready!"
-
-    return {
-        "success": True,
-        "message": message,
-        "data": enrollment_to_dict(enrollment),
-    }
+    return {"success": True, "message": _paid_message(enrollment), "data": enrollment_to_dict(enrollment)}
 
 
-def _invoice_data(enrollment: Enrollment) -> dict:
-    invoice_number = f"INV-{(enrollment.paid_at or datetime.now(timezone.utc)).year}-{enrollment.id[:8].upper()}"
-    return {
-        "invoiceNumber": invoice_number,
-        "invoiceDate": (enrollment.paid_at or datetime.now(timezone.utc)).strftime("%B %d, %Y"),
-        "studentName": enrollment.name,
-        "email": enrollment.email,
-        "phone": enrollment.phone,
-        "programTitle": enrollment.program_title,
-        "amount": enrollment.amount,
-        "currency": enrollment.currency,
-        "paymentId": enrollment.razorpay_payment_id or "—",
-        "orderId": enrollment.razorpay_order_id or "—",
-    }
-
-
-def _email_invoice(enrollment: Enrollment) -> None:
-    data = _invoice_data(enrollment)
-    pdf_buffer = generate_invoice_pdf(data)
-    filename = f"NeuIntern-Invoice-{data['invoiceNumber']}.pdf"
-    send_email_with_attachments(
-        to=enrollment.email,
-        subject=f"Payment Receipt — {data['invoiceNumber']}",
-        body=(
-            f"Hi {enrollment.name},\n\n"
-            f"Thanks for your payment of {enrollment.currency} {enrollment.amount:.2f} for the "
-            f"{enrollment.program_title} certificate fee. Your receipt is attached.\n\n"
-            f"— The NeuIntern Team"
-        ),
-        attachments=[(filename, pdf_buffer.read())],
-    )
+def _paid_message(enrollment: Enrollment) -> str:
+    if enrollment.certificate_unlocked:
+        return "Payment verified. Your certificate is ready!"
+    return "Payment verified. Your certificate will be emailed once the course is complete."
 
 
 @router.get("/{enrollment_id}/invoice/pdf")

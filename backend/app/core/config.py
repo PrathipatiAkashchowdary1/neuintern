@@ -16,6 +16,8 @@ class Settings(BaseSettings):
 
     razorpay_key_id: str = ""
     razorpay_key_secret: str = ""
+    # Set in Razorpay Dashboard > Webhooks (separate from the API key secret).
+    razorpay_webhook_secret: str = ""
 
     database_url: str = ""
 
