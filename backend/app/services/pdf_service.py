@@ -27,6 +27,8 @@ from reportlab.platypus import (
     TableStyle,
 )
 
+from app.services.invoice_settings import with_defaults
+
 # NeuIntern brand — solid teal (matches the logo/letterhead in the docx template)
 BRAND_TEAL = colors.HexColor("#00ABBC")
 INK = colors.HexColor("#150F26")
@@ -410,18 +412,30 @@ def generate_certificate_pdf(data: dict) -> io.BytesIO:
 
 def generate_invoice_pdf(data: dict) -> io.BytesIO:
     """data: invoiceNumber, invoiceDate (display string), studentName, email,
-    phone, programTitle, amount, currency, paymentId, orderId"""
+    phone, programTitle, amount, currency, paymentId, orderId, and optionally
+    `details`: the admin-editable invoice settings (company block, GST rate,
+    wording; see app/services/invoice_settings.py). Missing details fall back to
+    the original defaults, so older callers render exactly as before."""
+
+    d = with_defaults(data.get("details"))
+    cur = data["currency"]
 
     buf = io.BytesIO()
     page_w, page_h = A4
     c = canvas.Canvas(buf, pagesize=A4)
 
-    # GST Calculation (18% Inclusive)
+    # Tax: the fee already INCLUDES GST at `gst_rate` percent, split equally into
+    # CGST and SGST. A rate of 0 means no tax lines, just the total.
     total_amount = float(data["amount"])
-    taxable_amount = round(total_amount / 1.18, 2)
-    gst_amount = round(total_amount - taxable_amount, 2)
-    cgst = round(gst_amount / 2, 2)
-    sgst = round(gst_amount / 2, 2)
+    rate = float(d["gst_rate"])
+    if rate > 0:
+        taxable_amount = round(total_amount / (1 + rate / 100), 2)
+        gst_amount = round(total_amount - taxable_amount, 2)
+        cgst = round(gst_amount / 2, 2)
+        sgst = round(gst_amount - cgst, 2)  # absorbs the odd paisa so the rows sum to the total
+    else:
+        taxable_amount = total_amount
+        cgst = sgst = 0.0
 
     # ------------------------------------------------
     # Header
@@ -435,21 +449,12 @@ def generate_invoice_pdf(data: dict) -> io.BytesIO:
 
     c.setFillColor(INK)
     c.setFont("Helvetica-Bold", 20)
-    c.drawString(PAGE_MARGIN, page_h - 44 * mm, "Payment Receipt")
+    c.drawString(PAGE_MARGIN, page_h - 44 * mm, d["document_title"])
 
     c.setFont("Helvetica", 9)
     c.setFillColor(INK_MUTED)
-    c.drawString(
-        PAGE_MARGIN,
-        page_h - 52 * mm,
-        f"Invoice: {data['invoiceNumber']}"
-    )
-
-    c.drawRightString(
-        page_w - PAGE_MARGIN,
-        page_h - 52 * mm,
-        f"Date: {data['invoiceDate']}"
-    )
+    c.drawString(PAGE_MARGIN, page_h - 52 * mm, f"Invoice: {data['invoiceNumber']}")
+    c.drawRightString(page_w - PAGE_MARGIN, page_h - 52 * mm, f"Date: {data['invoiceDate']}")
 
     # ------------------------------------------------
     # Company Details
@@ -462,23 +467,27 @@ def generate_invoice_pdf(data: dict) -> io.BytesIO:
 
     c.setFillColor(INK)
     c.setFont("Helvetica-Bold", 11)
-    c.drawString(PAGE_MARGIN, company_y - 6 * mm, "VividOne Pvt. Ltd.")
+    c.drawString(PAGE_MARGIN, company_y - 6 * mm, d["company_name"])
 
     c.setFillColor(INK_MUTED)
     c.setFont("Helvetica", 9)
 
     text = c.beginText(PAGE_MARGIN, company_y - 12 * mm)
-    text.textLine("#Flat no 401, Vasista Enclave, A.S.Raju Nagar, KPHB,")
-    text.textLine("Hyderabad, Telangana 500072, India")
-    text.textLine("GSTIN: 36AAHCV0625N1Z1")
-    text.textLine("Email: contact@neuintern.com")
-    text.textLine("Phone: +91 9652522929")
+    for line in str(d["address"]).splitlines():
+        if line.strip():
+            text.textLine(line.strip())
+    if d["gstin"]:
+        text.textLine(f"GSTIN: {d['gstin']}")
+    if d["email"]:
+        text.textLine(f"Email: {d['email']}")
+    if d["phone"]:
+        text.textLine(f"Phone: {d['phone']}")
     c.drawText(text)
 
     # ------------------------------------------------
-    # Billed To
+    # Billed To (moves down if the company block is taller than the default)
     # ------------------------------------------------
-    y = page_h - 102 * mm
+    y = min(page_h - 102 * mm, text.getY() - 5 * mm)
 
     c.setFillColor(INK_MUTED)
     c.setFont("Helvetica-Bold", 9)
@@ -508,66 +517,35 @@ def generate_invoice_pdf(data: dict) -> io.BytesIO:
     c.drawString(PAGE_MARGIN, table_y, "DESCRIPTION")
     c.drawRightString(page_w - PAGE_MARGIN, table_y, "AMOUNT")
 
-    c.line(
-        PAGE_MARGIN,
-        table_y - 3 * mm,
-        page_w - PAGE_MARGIN,
-        table_y - 3 * mm
-    )
+    c.line(PAGE_MARGIN, table_y - 3 * mm, page_w - PAGE_MARGIN, table_y - 3 * mm)
 
     c.setFont("Helvetica", 10)
     c.setFillColor(INK)
 
     item_y = table_y - 3 * mm - row_h
 
-    c.drawString(
-        PAGE_MARGIN,
-        item_y,
-        f"Certificate processing fee — {data['programTitle']} internship"
-    )
+    c.drawString(PAGE_MARGIN, item_y, f"{d['item_description']} \u2014 {data['programTitle']} internship")
+    c.drawRightString(page_w - PAGE_MARGIN, item_y, f"{cur} {taxable_amount:.2f}")
 
-    c.drawRightString(
-        page_w - PAGE_MARGIN,
-        item_y,
-        f"{data['currency']} {taxable_amount:.2f}"
-    )
+    if rate > 0:
+        half = f"{rate / 2:g}"
+        item_y -= row_h
+        c.drawString(PAGE_MARGIN, item_y, f"CGST @ {half}%")
+        c.drawRightString(page_w - PAGE_MARGIN, item_y, f"{cur} {cgst:.2f}")
 
-    item_y -= row_h
-
-    c.drawString(PAGE_MARGIN, item_y, "CGST @ 9%")
-    c.drawRightString(
-        page_w - PAGE_MARGIN,
-        item_y,
-        f"{data['currency']} {cgst:.2f}"
-    )
-
-    item_y -= row_h
-
-    c.drawString(PAGE_MARGIN, item_y, "SGST @ 9%")
-    c.drawRightString(
-        page_w - PAGE_MARGIN,
-        item_y,
-        f"{data['currency']} {sgst:.2f}"
-    )
+        item_y -= row_h
+        c.drawString(PAGE_MARGIN, item_y, f"SGST @ {half}%")
+        c.drawRightString(page_w - PAGE_MARGIN, item_y, f"{cur} {sgst:.2f}")
 
     total_y = item_y - row_h
 
-    c.line(
-        PAGE_MARGIN,
-        total_y + 4 * mm,
-        page_w - PAGE_MARGIN,
-        total_y + 4 * mm
-    )
+    c.line(PAGE_MARGIN, total_y + 4 * mm, page_w - PAGE_MARGIN, total_y + 4 * mm)
 
     c.setFont("Helvetica-Bold", 11)
     c.setFillColor(INK)
 
     c.drawString(PAGE_MARGIN, total_y, "Total Paid")
-    c.drawRightString(
-        page_w - PAGE_MARGIN,
-        total_y,
-        f"{data['currency']} {total_amount:.2f}"
-    )
+    c.drawRightString(page_w - PAGE_MARGIN, total_y, f"{cur} {total_amount:.2f}")
 
     # ------------------------------------------------
     # Payment Details
@@ -577,23 +555,9 @@ def generate_invoice_pdf(data: dict) -> io.BytesIO:
     c.setFont("Helvetica", 8)
     c.setFillColor(INK_MUTED)
 
-    c.drawString(
-        PAGE_MARGIN,
-        meta_y,
-        f"Payment ID: {data['paymentId']}"
-    )
-
-    c.drawString(
-        PAGE_MARGIN,
-        meta_y - 5 * mm,
-        f"Order ID: {data['orderId']}"
-    )
-
-    c.drawString(
-        PAGE_MARGIN,
-        meta_y - 10 * mm,
-        "Payment Method: Razorpay"
-    )
+    c.drawString(PAGE_MARGIN, meta_y, f"Payment ID: {data['paymentId']}")
+    c.drawString(PAGE_MARGIN, meta_y - 5 * mm, f"Order ID: {data['orderId']}")
+    c.drawString(PAGE_MARGIN, meta_y - 10 * mm, "Payment Method: Razorpay")
 
     # ------------------------------------------------
     # Footer
@@ -606,23 +570,14 @@ def generate_invoice_pdf(data: dict) -> io.BytesIO:
     c.setFont("Helvetica", 8)
     c.setFillColor(INK_MUTED)
 
-    c.drawString(
-        PAGE_MARGIN,
-        footer_y - 6 * mm,
-        "NeuIntern Programs Team"
-    )
+    left_y = footer_y - 6 * mm
+    for line in (d["team_name"], d["brand_line"]):
+        if line:
+            c.drawString(PAGE_MARGIN, left_y, line)
+            left_y -= 4 * mm
 
-    c.drawString(
-        PAGE_MARGIN,
-        footer_y - 10 * mm,
-        "A Product of VividOne Pvt. Ltd."
-    )
-
-    c.drawRightString(
-        page_w - PAGE_MARGIN,
-        footer_y - 6 * mm,
-        "This is a system-generated receipt."
-    )
+    if d["footer_note"]:
+        c.drawRightString(page_w - PAGE_MARGIN, footer_y - 6 * mm, d["footer_note"])
 
     c.showPage()
     c.save()

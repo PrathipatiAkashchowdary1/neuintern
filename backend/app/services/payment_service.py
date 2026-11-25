@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from app.db.models import Enrollment
 from app.services.certificate_service import is_course_complete, send_certificate_email, unlock_certificate
 from app.services.email_service import run_email_task, send_email_with_attachments
+from app.services.invoice_settings import details_for, snapshot_json
 from app.services.pdf_service import generate_invoice_pdf
 
 logger = logging.getLogger(__name__)
@@ -25,8 +26,10 @@ logger = logging.getLogger(__name__)
 
 def invoice_data(enrollment: Enrollment) -> dict:
     paid_at = enrollment.paid_at or datetime.now(timezone.utc)
+    details = details_for(enrollment)  # snapshot taken when the payment was confirmed
     return {
-        "invoiceNumber": f"INV-{paid_at.year}-{enrollment.id[:8].upper()}",
+        "details": details,
+        "invoiceNumber": f"{details['invoice_prefix']}-{paid_at.year}-{enrollment.id[:8].upper()}",
         "invoiceDate": paid_at.strftime("%B %d, %Y"),
         "studentName": enrollment.name,
         "email": enrollment.email,
@@ -84,6 +87,8 @@ def mark_enrollment_paid(
             razorpay_payment_id=payment_id,
             razorpay_signature=signature,
             paid_at=datetime.now(timezone.utc),
+            # Freeze the invoice details as they are right now (see invoice_settings.py).
+            invoice_details_json=snapshot_json(db),
         )
     )
     db.commit()

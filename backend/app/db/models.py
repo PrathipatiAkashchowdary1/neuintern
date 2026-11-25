@@ -235,3 +235,31 @@ class Enrollment(Base):
     last_reminder_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=True
     )
+
+    # Invoice details (company block, GST rate, wording) copied at payment time
+    # so an issued invoice never changes when an admin edits the settings.
+    # NULL for payments made before this existed (they use the original defaults).
+    invoice_details_json: Mapped[str] = mapped_column(
+        Text, nullable=True
+    )
+
+
+class InvoiceSettings(Base):
+    """Single-row table (id = 1): the invoice details admins can edit.
+    Defaults live in app/services/invoice_settings.py, not in the database."""
+
+    __tablename__ = "invoice_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    company_name: Mapped[str] = mapped_column(String(120))
+    address: Mapped[str] = mapped_column(Text)
+    gstin: Mapped[str] = mapped_column(String(15), default="")
+    email: Mapped[str] = mapped_column(String(255), default="")
+    phone: Mapped[str] = mapped_column(String(30), default="")
+    gst_rate: Mapped[float] = mapped_column(Float, default=18.0)
+    invoice_prefix: Mapped[str] = mapped_column(String(10), default="INV")
+    document_title: Mapped[str] = mapped_column(String(40))
+    item_description: Mapped[str] = mapped_column(String(80))
+    team_name: Mapped[str] = mapped_column(String(80), default="")
+    brand_line: Mapped[str] = mapped_column(String(100), default="")
+    footer_note: Mapped[str] = mapped_column(String(100), default="")

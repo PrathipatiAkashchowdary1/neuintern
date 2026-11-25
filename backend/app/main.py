@@ -13,7 +13,18 @@ from app.core.config import settings
 from app.core.limiter import limiter
 from app.db.base import SessionLocal
 from app.db.seed import seed_admin_user, seed_certificates, seed_programs
-from app.routers import admin, auth, certificate, contact, enrollments, payments, programs, testimonials, unsubscribe
+from app.routers import (
+    admin,
+    auth,
+    certificate,
+    contact,
+    enrollments,
+    invoice_settings,
+    payments,
+    programs,
+    testimonials,
+    unsubscribe,
+)
 from app.services.certificate_service import process_due_certificates
 from app.services.reminder_service import send_due_reminders
 from app.services.upload_service import upload_root
@@ -120,6 +131,7 @@ app.include_router(auth.router)
 app.include_router(payments.router)
 app.include_router(enrollments.router)
 app.include_router(admin.router)
+app.include_router(invoice_settings.router)
 app.include_router(unsubscribe.router)
 
 # Admin-uploaded program images (already validated + re-encoded on upload).

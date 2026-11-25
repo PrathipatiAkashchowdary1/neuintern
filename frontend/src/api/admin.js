@@ -41,6 +41,22 @@ export async function uploadProgramImage(file) {
   return data.data.url
 }
 
+export async function fetchInvoiceSettings() {
+  const { data } = await apiClient.get('/admin/invoice-settings')
+  return data.data
+}
+
+export async function saveInvoiceSettings(payload) {
+  const { data } = await apiClient.put('/admin/invoice-settings', payload)
+  return data.data.settings
+}
+
+// Resolves to a PDF Blob of a sample invoice built from `payload`; nothing is saved.
+export async function previewInvoiceSettings(payload) {
+  const { data } = await apiClient.post('/admin/invoice-settings/preview', payload, { responseType: 'blob', timeout: 30000 })
+  return data
+}
+
 export async function fetchAllMessages() {
   const { data } = await apiClient.get('/admin/messages')
   return data.data

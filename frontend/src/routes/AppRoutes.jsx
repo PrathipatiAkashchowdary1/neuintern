@@ -31,6 +31,7 @@ const AdminStudents = lazy(() => import('../pages/admin/AdminStudents'))
 const AdminPayments = lazy(() => import('../pages/admin/AdminPayments'))
 const AdminMessages = lazy(() => import('../pages/admin/AdminMessages'))
 const AdminPrograms = lazy(() => import('../pages/admin/AdminPrograms'))
+const AdminInvoice = lazy(() => import('../pages/admin/AdminInvoice'))
 
 export default function AppRoutes() {
   return (
@@ -67,6 +68,7 @@ export default function AppRoutes() {
             <Route path="payments" element={<AdminPayments />} />
             <Route path="messages" element={<AdminMessages />} />
             <Route path="programs" element={<AdminPrograms />} />
+            <Route path="invoice-settings" element={<AdminInvoice />} />
           </Route>
         </Route>
       </Routes>

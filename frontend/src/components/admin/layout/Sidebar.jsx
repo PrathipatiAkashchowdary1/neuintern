@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { FiHome, FiUsers, FiBook, FiCreditCard, FiMail, FiLogOut, FiX } from 'react-icons/fi'
+import { FiHome, FiUsers, FiBook, FiCreditCard, FiFileText, FiMail, FiLogOut, FiX } from 'react-icons/fi'
 import { cn } from '../../../utils/cn'
 import { useAuth } from '../../../context/AuthContext'
 
@@ -8,6 +8,7 @@ const links = [
   { to: '/admin/students', label: 'Students', icon: FiUsers },
   { to: '/admin/programs', label: 'Courses', icon: FiBook },
   { to: '/admin/payments', label: 'Payments', icon: FiCreditCard },
+  { to: '/admin/invoice-settings', label: 'Invoice', icon: FiFileText },
   { to: '/admin/messages', label: 'Messages', icon: FiMail },
 ]
 
