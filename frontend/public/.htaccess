@@ -4,6 +4,13 @@
   RewriteEngine On
   RewriteBase /
 
+  # Force HTTPS in a single hop, straight to the canonical (non-www) address. The login cookie is
+  # Secure and only works over HTTPS. The X-Forwarded-Proto test stops a redirect loop when a
+  # CDN/proxy (for example Cloudflare) terminates HTTPS in front of this server.
+  RewriteCond %{HTTPS} !=on
+  RewriteCond %{HTTP:X-Forwarded-Proto} !https
+  RewriteRule ^(.*)$ https://neuintern.in/$1 [R=301,L]
+
   # Redirect www → non-www
   RewriteCond %{HTTP_HOST} ^www\.neuintern\.in$ [NC]
   RewriteRule ^(.*)$ https://neuintern.in/$1 [R=301,L]

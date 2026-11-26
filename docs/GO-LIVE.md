@@ -104,7 +104,12 @@ images disappear. Point `UPLOAD_DIR` at a persistent volume, and include it in y
 ## 3. Frontend build and hosting
 
 - [ ] Create `frontend/.env.production` containing `VITE_API_BASE_URL=https://api.neuintern.in/api`
-      (the tracked `frontend/.env` points at `localhost` and must not be used for the real build).
+      (it is git-ignored, so create it on the machine that builds). A production build **refuses to run**
+      if that address is missing, `localhost`, or not `https://`, so you cannot ship a site that calls the wrong API.
+      For local development, copy `frontend/.env.example` to `frontend/.env` (also git-ignored).
+- [ ] The API must be on a **subdomain of your own domain** (for example `api.neuintern.in`, a DNS record at GoDaddy
+      pointing at wherever the API runs). On an unrelated address the login cookie is treated as third-party and
+      login breaks in Safari and increasingly in Chrome.
 - [ ] `cd frontend && npm ci && npm run build`
 - [ ] Upload the contents of `frontend/dist/` to the web root (GoDaddy `public_html`). The
       `.htaccess` from `public/` is included in `dist/` and handles SPA routing and the www → non-www redirect.

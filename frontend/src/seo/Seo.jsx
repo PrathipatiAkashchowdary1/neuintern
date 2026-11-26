@@ -1,7 +1,9 @@
 import { Helmet } from 'react-helmet-async'
 
 const SITE_NAME = 'NeuIntern'
-const SITE_URL = 'https://www.neuintern.in'
+// The public address. It must match the sitemap, robots.txt, index.html and the www -> apex
+// redirect in public/.htaccess, otherwise every page names a canonical URL that redirects.
+const SITE_URL = 'https://neuintern.in'
 const DEFAULT_IMAGE = `${SITE_URL}/icon.png`
 
 /**

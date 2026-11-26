@@ -19,6 +19,15 @@ test.describe('public site', () => {
     expect(problems.filter((t) => /unique "key" prop/.test(t))).toEqual([]) // React list-key regression
   })
 
+  test('every page names the apex address as canonical (matches the www redirect and the sitemap)', async ({ page }) => {
+    for (const path of ['/', '/programs', '/contact']) {
+      await page.goto(path)
+      const canonical = await page.locator('link[rel="canonical"]').first().getAttribute('href')
+      expect(canonical).toBe(`https://neuintern.in${path === '/' ? '/' : path}`)
+      expect(canonical).not.toContain('www.')
+    }
+  })
+
   test('the category filter narrows the list', async ({ page }) => {
     await page.goto('/programs')
     const cards = page.locator('main a[href^="/programs/"]')
