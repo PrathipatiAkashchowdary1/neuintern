@@ -20,7 +20,7 @@ machine it will (correctly) report failures. It exits with code 1 if anything FA
 |---|---|
 | Where the **API** runs | Any host that runs Python 3.12 and keeps a process alive (a VPS, Render, Railway, Azure App Service...). The frontend host (GoDaddy shared hosting) cannot run it. |
 | **Database** | PostgreSQL (or MySQL). SQLite is a single file: fine for a demo, not for production. |
-| Where **uploaded images** live | A persistent disk or volume. See section 2 (Uploads). |
+| Where **uploaded images** live | In the database (the default). Nothing extra to set up, mount or back up. See section 2 (Uploads). |
 | **Domain layout** | Site on `neuintern.in`, API on `api.neuintern.in`. Same parent domain keeps cookies simple (section 7). |
 | **Email** | An SMTP mailbox on your own domain (Zoho, Google Workspace, etc.). |
 | **Backups** | Decide now who backs up the database and the uploads folder, and how often (section 9). |
@@ -63,7 +63,8 @@ Set these in `backend/.env` (or the host's environment). `✔` = must be set for
 | `SMTP_HOST` `SMTP_PORT` `SMTP_USER` `SMTP_PASSWORD` | ✔ | Without these, emails are only printed to the server log and nobody receives them. |
 | `SMTP_FROM` | | Default `NeuIntern <contact@neuintern.in>`. |
 | `CONTACT_NOTIFY_EMAIL` | | Where contact-form messages are sent. |
-| `UPLOAD_DIR` | | Where admin-uploaded images are stored. Use an **absolute path on a persistent disk** (section 2, Uploads). |
+| `UPLOAD_STORAGE` | | `database` (default) keeps program images in the database, so they survive redeploys on hosts with no persistent disk. `disk` writes files under `UPLOAD_DIR` instead (section 2, Uploads). |
+| `UPLOAD_DIR` | | Only used when `UPLOAD_STORAGE=disk` (and to keep serving images saved on disk earlier). Use an **absolute path on a persistent disk**. |
 | `COOKIE_SAMESITE` | | `lax` (default). Set `none` only if the site and API are on **different** domains. |
 | `COOKIE_DOMAIN` | | Leave empty, or `.neuintern.in` to share the cookie across subdomains. |
 | `SCHEDULER_ENABLED` | | `true` (default). Runs certificate unlocks, email retries and reminders. Safe with several workers. |
@@ -96,10 +97,17 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 2 --proxy-headers
 
 ### Uploads
 
-Admin-uploaded program images are written to `UPLOAD_DIR` and served at `/uploads`. If that
-folder is inside the application directory, many hosts **wipe it on every redeploy** and the
-images disappear. Point `UPLOAD_DIR` at a persistent volume, and include it in your backups.
-(If you would rather use S3/R2, that is not built yet: it is a small, separate piece of work.)
+Admin-uploaded program images are stored **in the database** by default (`UPLOAD_STORAGE=database`) and served by the
+API at `/uploads/<name>`. That is the right choice on free or small hosts, because it needs no persistent disk, survives
+redeploys, and is backed up together with the database. Images are re-encoded and shrunk (at most 1600 px) when uploaded,
+and images nobody uses any more are cleaned up automatically after 7 days.
+
+- **MySQL:** each image is one row (up to `MAX_UPLOAD_MB`, default 3). The server's `max_allowed_packet` must be larger than
+  that; the default (4 MB or more) is fine. The checker reminds you of this when it sees MySQL.
+- **A server with a persistent disk:** you may set `UPLOAD_STORAGE=disk` and `UPLOAD_DIR=/absolute/path`; then back that
+  folder up too. If the folder is inside the application directory, many hosts **wipe it on every redeploy**.
+- Images saved on disk by an earlier version keep being served in either mode.
+- Browsers and CDNs may cache the images for a year (their names never repeat), so a CDN in front of the API makes them fast.
 
 ## 3. Frontend build and hosting
 
@@ -163,7 +171,7 @@ Then on the **live** site:
 ## 9. Backups and watching it run
 
 - [ ] **Database backup** on a schedule (for PostgreSQL, a nightly `pg_dump`), stored off the server, with one restore tried.
-- [ ] **Uploads folder** backed up too.
+- [ ] If you set `UPLOAD_STORAGE=disk`, back up the uploads folder too (with the default `database` storage the database backup already covers images).
 - [ ] Something pings `/api/health` and alerts you when it stops answering.
 - [ ] Check **Admin → Emails** now and then: *Failed* means an invoice, certificate or offer letter did not reach someone. Fix the cause (usually SMTP) and press *Retry now*.
 - [ ] Re-run `python -m app.deploy_check` after every deploy.
@@ -186,5 +194,5 @@ They nudge students who enrolled but have not paid. They are off by default so a
 - Login codes (OTP) emails are sent from memory, not the durable email queue; if the server restarts at that moment, the user just asks for another code.
 - Sessions from before the device-session feature have no server record and live until they expire (7 days at most); *Log out of all devices* and a password reset still cut them off.
 - Invoices split GST as CGST + SGST only (no IGST for out-of-state customers).
-- `sitemap.xml` is static; uploaded images live on the API server's disk (section 2).
+- `sitemap.xml` is static, so programs you add in the admin portal are not in it until you update it.
 - Free-tier hosts that sleep or wipe their disk are not suitable for the database or uploads.

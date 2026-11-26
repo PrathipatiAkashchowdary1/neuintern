@@ -2,7 +2,8 @@ import uuid
 from datetime import datetime, timezone
 
 import sqlalchemy as sa
-from sqlalchemy import Boolean, DateTime, Float, Integer, String, Text
+from sqlalchemy.dialects import mysql
+from sqlalchemy import Boolean, LargeBinary, DateTime, Float, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -325,3 +326,18 @@ class UserSession(Base):
     user_agent: Mapped[str] = mapped_column(String(255), default="")
     ip: Mapped[str] = mapped_column(String(45), default="")
     revoked_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+
+
+class UploadedImage(Base):
+    """An admin-uploaded program image, kept in the database so it survives redeploys on hosts
+    with no persistent disk and is backed up with everything else. Served at /uploads/<name>.
+    The name is random and never reused, so the bytes behind a name never change."""
+
+    __tablename__ = "uploaded_images"
+
+    name: Mapped[str] = mapped_column(String(64), primary_key=True)  # "<32 hex>.<png|jpg|webp>"
+    content_type: Mapped[str] = mapped_column(String(30))
+    # A plain MySQL BLOB holds only 64 KB; images are larger, so MySQL gets LONGBLOB.
+    data: Mapped[bytes] = mapped_column(LargeBinary().with_variant(mysql.LONGBLOB(), "mysql"))
+    size: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)

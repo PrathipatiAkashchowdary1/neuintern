@@ -214,12 +214,13 @@ async def admin_upload_image(
     request: Request,
     file: UploadFile = File(...),
     _admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
 ):
     """Uploads a program image and returns its public URL, to be stored in a
     program's `image` field. Only real PNG/JPEG/WebP images are accepted."""
     # Read at most one byte over the limit so a huge upload is never held in memory.
     data = await file.read(settings.max_upload_mb * 1024 * 1024 + 1)
-    filename = save_program_image(data)
+    filename = save_program_image(db, data)
     # Absolute URL on the API host: the frontend is served from a different origin.
     base = (settings.api_public_url or str(request.base_url)).rstrip("/")
     return {"success": True, "data": {"url": f"{base}/uploads/{filename}"}}

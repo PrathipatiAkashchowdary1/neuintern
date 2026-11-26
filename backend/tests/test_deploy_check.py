@@ -165,15 +165,25 @@ class TestSettingsChecks:
         assert levels(result)["Email (SMTP)"] == FAIL
         assert "ConnectionRefusedError" in next(c.detail for c in result if c.name == "Email (SMTP)")
 
-    def test_unwritable_upload_dir_fails(self, tmp_path):
+    def test_database_storage_needs_no_folder_and_passes(self, tmp_path):
+        blocker = tmp_path / "a-file"
+        blocker.write_text("x")  # an unusable folder is irrelevant when images live in the database
+        assert settings_only(good(tmp_path, upload_dir=str(blocker / "uploads")))["Image uploads"] == PASS
+
+    def test_mysql_gets_a_note_about_max_allowed_packet(self, tmp_path):
+        s = good(tmp_path, database_url="mysql+pymysql://u:p@host/db")
+        assert settings_only(s)["Image uploads (MySQL)"] == INFO
+        assert "Image uploads (MySQL)" not in settings_only(good(tmp_path))
+
+    def test_unwritable_upload_dir_fails_in_disk_mode(self, tmp_path):
         blocker = tmp_path / "a-file"
         blocker.write_text("x")
-        assert settings_only(good(tmp_path, upload_dir=str(blocker / "uploads")))["Image uploads"] == FAIL
+        assert settings_only(good(tmp_path, upload_storage="disk", upload_dir=str(blocker / "uploads")))["Image uploads"] == FAIL
 
     def test_upload_dir_inside_the_app_folder_warns(self, tmp_path):
         inside = Path(dc.__file__).resolve().parents[1] / "uploads-check-test"
         try:
-            assert settings_only(good(tmp_path, upload_dir=str(inside)))["Image uploads"] == WARN
+            assert settings_only(good(tmp_path, upload_storage="disk", upload_dir=str(inside)))["Image uploads"] == WARN
         finally:
             inside.rmdir() if inside.exists() else None
 

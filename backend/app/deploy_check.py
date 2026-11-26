@@ -195,6 +195,17 @@ def check_smtp(s: Settings, *, connect: bool = False) -> list[Check]:
 
 
 def check_uploads(s: Settings) -> list[Check]:
+    if s.upload_storage == "database":
+        out = [Check(PASS, "Image uploads", "stored in the database, so they survive redeploys and are backed up with it")]
+        if s.database_url.startswith("mysql"):
+            out.append(
+                Check(
+                    INFO,
+                    "Image uploads (MySQL)",
+                    f"images up to {s.max_upload_mb} MB are stored as single rows; MySQL's max_allowed_packet must be larger than that (the default is 4 MB or more)",
+                )
+            )
+        return out
     root = Path(s.upload_dir)
     backend_dir = Path(__file__).resolve().parents[1]
     if not root.is_absolute():

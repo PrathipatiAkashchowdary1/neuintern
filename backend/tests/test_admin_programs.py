@@ -211,6 +211,11 @@ class TestEditProgram:
 
 
 class TestImageUpload:
+    # Every upload rule must hold whichever storage is configured.
+    @pytest.fixture(params=["database", "disk"], autouse=True)
+    def _storage(self, request, monkeypatch):
+        monkeypatch.setattr(settings, "upload_storage", request.param)
+
     @pytest.mark.parametrize("fmt,ext", [("PNG", ".png"), ("JPEG", ".jpg"), ("WEBP", ".webp")])
     def test_valid_images_are_stored_and_served(self, client, admin_headers, fmt, ext):
         r = _upload(client, admin_headers, _image_bytes(fmt))

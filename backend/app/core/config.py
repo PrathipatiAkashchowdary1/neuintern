@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -57,6 +59,12 @@ class Settings(BaseSettings):
     # Public URL of THIS API (e.g. https://api.neuintern.in). Only used for the
     # one-click List-Unsubscribe email header; omitted when empty.
     api_public_url: str = ""
+
+    # Where admin-uploaded program images are kept. "database" (default) stores them in the
+    # database: nothing to mount or back up separately, and it works on hosts that wipe
+    # their disk on every deploy. "disk" writes files under UPLOAD_DIR (use it on a server
+    # with a persistent disk). Images already on disk keep being served either way.
+    upload_storage: Literal["database", "disk"] = "database"
 
     # Program images uploaded from the admin portal. Relative paths are
     # relative to backend/. On hosts with ephemeral disks, point this at a

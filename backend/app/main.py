@@ -4,7 +4,6 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
-from fastapi.staticfiles import StaticFiles
 from apscheduler.schedulers.background import BackgroundScheduler
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -26,12 +25,12 @@ from app.routers import (
     programs,
     testimonials,
     unsubscribe,
+    uploads,
 )
 from app.services.certificate_service import process_due_certificates
 from app.services.job_lock import run_exclusive
 from app.services.outbox_service import process_due as process_outbox
 from app.services.reminder_service import send_due_reminders
-from app.services.upload_service import upload_root
 
 app = FastAPI(title=settings.app_name)
 
@@ -169,5 +168,5 @@ app.include_router(invoice_settings.router)
 app.include_router(admin_emails.router)
 app.include_router(unsubscribe.router)
 
-# Admin-uploaded program images (already validated + re-encoded on upload).
-app.mount("/uploads", StaticFiles(directory=upload_root()), name="uploads")
+# Admin-uploaded program images (validated and re-encoded on upload), served from the database or disk.
+app.include_router(uploads.router)
